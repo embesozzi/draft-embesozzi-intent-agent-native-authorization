@@ -6,7 +6,7 @@ category: info
 docname: draft-embesozzi-intent-agent-native-authorization-00
 submissiontype: independent
 number:
-date: 2026-06-22
+date: 2026-07-10
 consensus: false
 v: 3
 keyword:
@@ -30,6 +30,8 @@ normative:
   RFC8174:
   RFC9396:
   RFC7519:
+  RFC9068:
+  RFC6750:
   FIPA:
     title: "OAuth 2.0 for First-Party Applications"
     target: https://datatracker.ietf.org/doc/draft-ietf-oauth-first-party-apps/
@@ -89,12 +91,28 @@ informative:
     author:
       org: Google
     date: 2023
+  CIBA:
+    title: "OpenID Connect Client-Initiated Backchannel Authentication Flow - Core 1.0"
+    target: https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html
+    author:
+      org: OpenID Foundation
+    date: 2021
+  WEBAUTHN:
+    title: "Web Authentication: An API for accessing Public Key Credentials Level 3"
+    target: https://www.w3.org/TR/webauthn-3/
+    author:
+      org: W3C
+    date: 2025
+  SPIFFE:
+    title: "SPIFFE: Secure Production Identity Framework For Everyone"
+    target: https://spiffe.io/docs/latest/spiffe-about/overview/
+    author:
+      org: SPIFFE Project
+    date: 2024
 
 --- abstract
 
-This document defines Intent Agent Native Authorization (IANA-AP), a framework that enables first-party AI agents to discover the authorization requirements of agentic profiles, compute a structured authorization intent from user prompts, obtain human approval via a native authorization flow, and present a token that enforcement points verify using fine-grained policy decisions.
-
-The framework composes existing specifications: a machine-readable authorization mapping in agentic profiles for SARC-structured authorization requirement discovery; OAuth 2.0 Rich Authorization Requests (RFC 9396) for structured intent representation; the OAuth 2.0 First-Party Applications draft and the OAuth 2.0 Agent Native Authorization draft for the human approval flow; and a SARC-structured authorization request that enforcement points evaluate using a Policy Decision Point (PDP) — AuthZEN by default, or any compatible policy engine including local evaluation. The mapping format is inspired by the COAZ profile and is designed to be PDP-agnostic.
+This specification defines a framework that enables a first-party AI agent to obtain explicit user approval for the specific operations it plans to execute, and enables enforcement points to verify at runtime that every invocation remains within that approval. The agent discovers the authorization requirements that services publish in their agentic profiles, computes from the user's prompt a structured authorization intent expressed as Rich Authorization Request entries (RFC 9396), and obtains user approval through the native, browser-less challenge flow defined by OAuth 2.0 for First-Party Applications and OAuth 2.0 Agent Native Authorization. The resulting access token carries the approved intent; enforcement points verify each tool invocation against it using a Policy Decision Point, such as the OpenID AuthZEN Authorization API or a local policy engine. This framework is referred to as Intent Agent Native Authorization for Agentic Profiles (IANA-AP).
 
 This version defines the framework for the Model Context Protocol (MCP). Extension to Agent2Agent (A2A) and OpenAPI-described REST APIs is noted as future work.
 
@@ -106,35 +124,42 @@ OAuth 2.0 {{RFC6749}} and its extensions define how credentials are issued and s
 
 This gap is acute in first-party agentic deployments. A user instructs an agent to carry out a task. The agent must call one or more tools on MCP servers, A2A agents, or REST APIs. Each of those tools requires specific authorized actions on specific resources. Without a discovery mechanism, the agent either requests overly broad permissions upfront or fails at runtime when enforcement points reject its token.
 
-Traditional OAuth deployments grant permissions at login time: the user approves a set of scopes once, and every subsequent action is authorized implicitly under those scopes. This model is unsuitable for agentic deployments, where the specific actions and resources involved are not known until the user issues a prompt. This specification shifts authorization from login time to runtime: the agent computes the exact intent from the user's prompt, the user approves it at the moment of action with a cryptographic gesture via {{ANA}}, and the resulting token carries that precise approved intent. The token is not a broad credential — it is a cryptographically bound record of what the user chose to authorize for this specific task. Unlike browser-based OAuth flows, this approval happens natively within the agent's UX — no redirect, no browser pop-up — via a structured machine-readable challenge that the agent renders directly to the user.
+Traditional OAuth deployments grant permissions at login time: the user approves a set of scopes once, and every subsequent action is authorized implicitly under those scopes. This model is unsuitable for agentic deployments, where the specific actions and resources involved are not known until the user issues a prompt. It also answers only a single question — is this request allowed? — while agentic systems require an additional runtime guarantee: does this request belong to the execution plan the user explicitly approved?
 
-This document defines a framework with four phases:
+This specification provides that guarantee through a plan-before-execute model that shifts authorization from login time to runtime. The agent computes the exact intent from the user's prompt; the user approves it at the moment of action with a cryptographic gesture via {{ANA}}, natively within the agent's UX — no browser redirect — through a structured machine-readable challenge; and the resulting token is not a broad credential but a record of what the user chose to authorize for this specific task. Every subsequent invocation is verified against that approval at runtime.
 
-1. **Discovery**: The agent reads the SARC mappings published in the agentic profile's tool definitions before execution. For MCP, these mappings use the `x-authz-mapping` field defined in Section 4.2.
+Before an AI agent can execute on behalf of a user, it must answer four questions:
 
-2. **Intent Computation**: The agent maps the user's prompt against the discovered SARC entries to produce a set of `authorization_details` entries ({{RFC9396}}) that represent the precise set of authorized actions the user will be asked to approve.
+- What authorization does each service require?
+- Which operations is the agent planning to execute?
+- Has the user explicitly approved those operations?
+- Does every runtime invocation remain within that approval?
 
-3. **User Authorization**: The agent drives an OAuth 2.0 first-party authorization challenge carrying the computed `authorization_details`. The user sees the exact planned tool invocations and approves natively — no browser redirect — via a structured machine-readable challenge ({{ANA}}). This phase follows {{FIPA}} and {{ANA}}.
+This document defines a framework with four phases, each answering one of these questions:
 
-4. **Enforcement**: The agent presents the resulting token to the Enforcement Point (PEP). The PEP maps each tool invocation to the token's `authorization_details`, extracts the SARC parameters, and calls a Policy Decision Point (PDP) for a fine-grained allow/deny decision. AuthZEN {{AUTHZEN}} is the normative PDP interface; other compatible policy engines MAY be used.
+1. **Discover Required Authorization**: The agent reads the SARC mappings published in the agentic profile's tool definitions before execution. For MCP, these mappings use the `x-authz-mapping` field defined in Section 4.2.
 
-This framework is designed to be composable with existing infrastructure. An organization that has deployed OAuth 2.0, OpenID Connect, and AuthZEN-compatible Policy Enforcement Points can extend to intent-based authorization by adopting this specification without replacing any existing component. The Authorization Server, the Policy Decision Point, and the Agentic Profile are independently interchangeable — this specification defines the interfaces between them, not their implementations. An operator may start with a remote AuthZEN PDP and later replace it with a local Cedar or OPA engine; swap one MCP server for another; or adopt a different OAuth 2.0 AS — without modifying the framework. No redesign; just composition.
+2. **Compute Authorization Intent**: The agent maps the user's prompt against the discovered SARC entries to produce a set of `authorization_details` entries ({{RFC9396}}) that represent the precise set of authorized actions the user will be asked to approve.
+
+3. **Review and Approve**: The agent drives an OAuth 2.0 first-party authorization challenge carrying the computed `authorization_details`. The user sees the exact planned tool invocations and approves natively — no browser redirect — via a structured machine-readable challenge ({{ANA}}). This phase follows {{FIPA}} and {{ANA}}.
+
+4. **Runtime Enforcement**: The agent presents the resulting token to the Policy Enforcement Point (PEP). The PEP maps each tool invocation to the token's `authorization_details`, extracts the SARC parameters, and calls a Policy Decision Point (PDP) for a fine-grained allow/deny decision. AuthZEN {{AUTHZEN}} is the normative PDP interface; other compatible policy engines MAY be used.
+
+This framework is designed to be composable with existing infrastructure. An organization that has deployed OAuth 2.0, OpenID Connect, and AuthZEN-compatible Policy Enforcement Points can extend to intent-based authorization by adopting this specification without replacing any existing component. The Authorization Server, the Policy Decision Point, and the Agentic Profile are independently interchangeable — this specification defines the interfaces between them, not their implementations. An operator may start with a remote AuthZEN PDP and later replace it with a local Cedar or OPA engine; swap one MCP server for another; or adopt a different OAuth 2.0 AS — without modifying the framework. IANA-AP does not replace existing standards; it composes them.
+
+This document presents a unified view of the framework, intended as a reference integration point that shows how the four phases compose into a coherent whole. Based on community feedback, individual components may be specified in separate documents. The known open points and candidate future specifications are enumerated in Appendix B.
 
 ## Relationship to Existing Specifications
 
 This specification builds on and composes the following:
 
-- **COAZ {{COAZ}}**: Informatively referenced as the origin of the `x-authz-mapping` field concept and SARC-structured tool mapping. IANA-AP defines `x-authz-mapping` independently (Section 4.2) to be PDP-agnostic and AuthZEN-compatible, and intentionally diverges from COAZ's enforcement-time resource construction behavior (Section 8.3). COAZ is cited as background; IANA-AP implementations are not required to conform to it.
+- **COAZ {{COAZ}}**: Informatively referenced as the origin of the `x-authz-mapping` field concept and SARC-structured tool mapping. IANA-AP defines `x-authz-mapping` independently (Section 4.2) to be PDP-agnostic and AuthZEN-compatible, and intentionally diverges from COAZ's enforcement-time resource construction behavior (Section 8.4). COAZ is cited as background; IANA-AP implementations are not required to conform to it.
 
 - **RFC 9396 {{RFC9396}}**: The `authorization_details` parameter and RAR token structure are used as-is. This specification defines a new RAR type `agent_intent` to carry SARC-structured intent entries.
 
 - **draft-ietf-oauth-first-party-apps {{FIPA}} and draft-embesozzi-oauth-agent-native-authorization {{ANA}}**: The user authorization phase is fully delegated to these two specifications. This document normatively references them and does not respecify the challenge/response mechanics.
 
-- **AuthZEN {{AUTHZEN}}**: The normative Remote PDP interface. This specification defines how the PEP constructs the AuthZEN request from the token's `authorization_details` and the active tool call. Implementations using a Local PDP (Cedar, OPA) follow the same SARC structure with a different evaluation mechanism (Section 8.3).
-
-## Relationship to Mission-Bound Authorization
-
-Mission-Bound Authorization defines a durable Mission object that persists across token rotations and delegation chains. That work and this specification share the intuition that a token alone is insufficient to capture a human-approved task. The key difference is focus: Mission-Bound Authorization defines the lifecycle governance of a mission artifact; this specification defines how an agent *discovers* what to request in the first place and how the resulting token is enforced at the point of action execution. The two specifications are complementary and future work may define a binding between `agent_intent` entries and a Mission object.
+- **AuthZEN {{AUTHZEN}}**: The normative Remote PDP interface. This specification defines how the PEP constructs the AuthZEN request from the token's `authorization_details` and the active tool call. Implementations using a Local PDP (Cedar, OPA) follow the same SARC structure with a different evaluation mechanism (Section 8.4).
 
 ## Requirements Notation
 
@@ -154,7 +179,7 @@ SARC Model:
 : The Subject-Action-Resource-Context model as defined in {{AUTHZEN}}. In this specification, SARC parameters are expressed in the `agent_intent` RAR type (Section 5.2); the `x-authz-mapping` field (Section 4.2) carries CEL expressions for `action`, `resource`, and `arguments` that are evaluated to populate the SARC fields at intent computation time.
 
 Authorization Mapping:
-: The `x-authz-mapping` extension field within the `_meta` object of an agentic profile tool definition, as defined in Section 4.2. Its presence declares the tool as participating in IANA-AP (opt-in signal). It carries CEL expressions for `action`, `resource`, and `arguments` that the agent evaluates to construct the `agent_intent` entry. The field structure is AuthZEN-compatible and PDP-agnostic.
+: The `x-authz-mapping` extension field within the `_meta` object of an agentic profile tool definition, as defined in Section 4.2. Its presence declares the tool as participating in IANA-AP (opt-in signal). It carries CEL expressions for `action`, `resource`, and `arguments` that the agent evaluates to construct the `agent_intent` entry.
 
 Authorization Intent:
 : The set of `authorization_details` entries of type `agent_intent` that the agent computes from the user's prompt and the discovered SARC mappings. Each entry represents one planned tool invocation.
@@ -165,7 +190,7 @@ Intent Agent:
 RAR Token:
 : An OAuth 2.0 access token that carries an `authorization_details` claim ({{RFC9396}}) containing one or more `agent_intent` entries.
 
-Enforcement Point (PEP):
+Policy Enforcement Point (PEP):
 : The component that intercepts tool invocations, extracts the token's `authorization_details`, and calls the PDP before executing the tool. A single abstract actor; in the Agentic MCP Profile this is an MCP server or MCP gateway; other profiles define their own equivalent enforcement points.
 
 PDP:
@@ -182,12 +207,12 @@ Authorization Server (AS):
 
 The following diagram shows the full four-phase flow. In this version of the
 specification, the Agentic Profile is an MCP Server; future versions extend this
-framework to A2A Agent Cards and OpenAPI descriptions (Section 4.1).
+framework to A2A Agent Cards and OpenAPI descriptions (Sections 4.4 and 4.5).
 
 ~~~
 User          Agent          AS      Agentic Profile / PEP    PDP
  |              |             |                    |                |
- |              | [Phase 1: Discovery]              |                |
+ |              | [Phase 1: Discover Required Authorization]        |                |
  |              |             |                    |                |
  |  (1) Prompt  |             |                    |                |
  |------------->|             |                    |                |
@@ -197,11 +222,11 @@ User          Agent          AS      Agentic Profile / PEP    PDP
  |              | (3) Agentic Profile + x-authz-mapping             |
  |              |<----------------------------------|                |
  |              |             |                    |                |
- |              | [Phase 2: Intent Computation]     |                |
+ |              | [Phase 2: Compute Authorization Intent]           |                |
  |              |             |                    |                |
  |              | (4) Compute authorization_details (agent_intent)  |
  |              |             |                    |                |
- |              | [Phase 3: User Authorization]     |                |
+ |              | [Phase 3: Review and Approve]     |                |
  |              |             |                    |                |
  |              | (5) Auth Req + authorization_details     |                |
  |              |------------>|                    |                |
@@ -216,7 +241,7 @@ User          Agent          AS      Agentic Profile / PEP    PDP
  |              | (9) RAR token (authorization_details: agent_intent)|
  |              |<------------|                    |                |
  |              |             |                    |                |
- |              | [Phase 4: Enforcement]            |                |
+ |              | [Phase 4: Runtime Enforcement]     |                |
  |              |             |                    |                |
  |              | (10) Tool call + Bearer RAR token|                |
  |              |---------------------------------->|                |
@@ -262,13 +287,13 @@ The field contains three sub-objects:
 
 - `action`: CEL expressions for the `action` component of the SARC model.
 - `resource`: CEL expressions for the `resource` component. Single-quoted strings (e.g., `'mcp-tool'`) are CEL string literals.
-- `arguments`: a map of argument names to CEL expressions that resolve argument values from the user's prompt at intent computation time.
+- `arguments`: a map of argument names to CEL expressions that resolve argument values from the planned call at intent computation time (Section 5.4).
 
-`resource.properties.aud` is NOT carried in the per-tool mapping. It is sourced from the MCP Server Card at intent computation time (the server-level identity URI is a server-scoped, not tool-scoped, attribute).
+`resource.properties.aud` is NOT carried in the per-tool mapping. It is sourced from the MCP Server Card at intent computation time (the server-level identity URI is a server-scoped, not tool-scoped, attribute). When the server does not publish a Server Card (discovery via `tools/list` only), the agent SHOULD use the server's canonical resource identifier — the same value used as the `resource` parameter in the authorization request ({{RFC8707}}) — as the `aud` value.
 
 ### CEL Evaluation Context
 
-Expression evaluation uses Common Expression Language (CEL) {{CEL}}. The use of CEL expressions in tool authorization mappings follows the convention established by the COAZ profile {{COAZ}}. The evaluation context is defined identically for both Phase 2 (planned call) and Phase 4 (actual MCP request), enabling the same expressions to be evaluated by both the agent and the PEP:
+Expression evaluation uses Common Expression Language (CEL) {{CEL}}. The use of CEL expressions in tool authorization mappings follows the convention established by the COAZ profile {{COAZ}}. The evaluation context is defined for both Phase 2 (planned call) and Phase 4 (actual MCP request) — with the exception of the `token` variable, available only at Phase 4 — enabling the same expressions to be evaluated by both the agent and the PEP:
 
 | CEL variable | Value |
 |---|---|
@@ -277,9 +302,9 @@ Expression evaluation uses Common Expression Language (CEL) {{CEL}}. The use of 
 | `params.arguments.X` | Argument X from the tool call parameters |
 | `token.X` | Claim X from the caller's JWT |
 
-At Phase 2, the agent evaluates expressions against the planned call values (tool name known from discovery, argument values extracted from the user's prompt). At Phase 4, the PEP evaluates the same expressions against the actual incoming MCP request.
+At Phase 2, the agent evaluates the expressions against the planned call to construct the `agent_intent` entry. At Phase 4, the PEP evaluates the same expressions against the actual incoming MCP request to construct the SARC representation of the attempted call, which is used to verify the invocation against the approved `agent_intent` entry (Section 8.2). The `token` variable is defined only at Phase 4, where the PEP evaluates expressions against the actual request and the presented token; expressions that are evaluated at Phase 2 to construct `agent_intent` entries cannot reference `token`.
 
-An MCP tool that wishes to support pre-computed authorization intent MUST include an `x-authz-mapping` field within its `_meta` object. Tools that omit this field cannot be pre-authorized; when the agent calls such a tool, the PEP will find no matching `agent_intent` entry and MUST apply just-in-time re-authorization (Section 8.4).
+An MCP tool that wishes to support pre-computed authorization intent MUST include an `x-authz-mapping` field within its `_meta` object. Tools that omit this field cannot be pre-authorized; when the agent calls such a tool, no matching `agent_intent` entry will exist and the invocation is handled as described in Section 8.2.
 
 A conforming tool definition example:
 
@@ -323,7 +348,7 @@ The agent MUST perform discovery before execution begins, not lazily at the poin
 2. For each tool in the profile, the agent checks for the presence of `x-authz-mapping` within the tool's `_meta` object.
 3. The agent retains the set of tools with an `x-authz-mapping` entry as the discovery corpus for intent computation.
 
-Tools without an `x-authz-mapping` field in their `_meta` cannot be included in pre-computed authorization intent. If the agent calls such a tool, no matching `agent_intent` entry will exist in the presented token. The PEP MUST apply just-in-time re-authorization as described in Section 8.4.
+Tools without an `x-authz-mapping` field in their `_meta` cannot be included in the pre-computed authorization intent; calls to such tools are handled as described in Section 8.2.
 
 ## Authorization Mapping in Agentic A2A Profile
 
@@ -333,7 +358,7 @@ This section is reserved for future specification. A future version of this docu
 
 This section is reserved for future specification. A future version of this document will define an equivalent discovery procedure for REST APIs described with OpenAPI {{OPENAPI}}, where SARC mappings are expressed as an `x-authz-mapping` extension field on individual operation objects. A future OpenAPI binding will define the CEL evaluation context and `resource.type` literal appropriate for that profile.
 
-# Intent Computation
+# Compute Authorization Intent
 
 ## Overview
 
@@ -372,7 +397,7 @@ resource:
 : REQUIRED. An object with the following fields:
   - `type`: the string `"mcp-tool"`
   - `id`: the tool name being invoked
-  - `properties.aud`: the URI identifying the MCP server (sourced from the Server Card at intent computation time; see Section 5.4)
+  - `properties.aud`: the URI identifying the MCP server
   - `properties.arguments`: the approved call arguments resolved from the user's prompt
 
 ## Subject Inference
@@ -385,22 +410,22 @@ The following procedure applies to the Agentic MCP Profile. Future versions of t
 
 The agent MUST compute the authorization intent as follows:
 
-1. For each tool the agent determines it will call (based on the user's prompt and the available tool definitions), locate the corresponding `x-authz-mapping` entry from the discovery corpus (Section 4.2). If no `x-authz-mapping` entry exists for a tool, that tool MUST NOT be included in the pre-computed authorization intent; the agent MAY still attempt to call it, but the PEP will apply just-in-time re-authorization (Section 8.4).
+1. For each tool the agent determines it will call (based on the user's prompt and the available tool definitions), locate the corresponding `x-authz-mapping` entry from the discovery corpus (Section 4.2). If no `x-authz-mapping` entry exists for a tool, that tool MUST NOT be included in the pre-computed authorization intent; the agent MAY still attempt to call it; the invocation is then handled as described in Section 8.2.
 2. Evaluate the `x-authz-mapping` CEL expressions against the planned call context (Section 4.2) to construct the `agent_intent` entry:
    - `action.name`: evaluate `x-authz-mapping.action.name` (e.g., `params.method` → `"tools/call"`)
    - `resource.type`: evaluate `x-authz-mapping.resource.type` (e.g., `'mcp-tool'` → `"mcp-tool"`)
    - `resource.id`: evaluate `x-authz-mapping.resource.id` (e.g., `params.name` → tool name)
    - `resource.properties.aud`: set to the MCP server's identity URI sourced from the Server Card (not from the per-tool mapping)
-   - `resource.properties.arguments`: evaluate each expression in `x-authz-mapping.arguments` against the prompt context, extracting argument values from the user's natural language input
+   - `resource.properties.arguments`: evaluate each expression in `x-authz-mapping.arguments` against the planned call, whose argument values the agent has derived from the user's prompt (e.g., `params.arguments.userId` → `"alice"`)
 
 3. Produce one `agent_intent` entry per planned tool invocation.
 4. Collect all entries into an `authorization_details` array.
 
 When the agent plans tool invocations across multiple Agentic Profile servers, the authorization request SHOULD include all server URIs as `resource` parameter values ({{RFC8707}}) so the issued token carries an `aud` claim covering all intended servers.
 
-The agent MUST present the computed `authorization_details` to the user for review before submitting the authorization request (Step 6 in Section 3).
+The agent MUST present the computed `authorization_details` to the user for review as part of the authorization challenge flow (Step 6 in Section 3), before any tool invocation.
 
-# User Authorization
+# Review and Approve
 
 Unlike browser-based OAuth flows where the user is redirected to a consent page, this framework delivers the authorization challenge directly to the agent in a structured machine-readable format. The agent renders this natively — as a prompt, dialog, or UI component within its own interface — without any browser interaction. The user sees exactly what the agent plans to do (which tools, on which resources, with which arguments) before any authentication gesture is requested.
 
@@ -411,6 +436,8 @@ The user authorization phase is fully delegated to two existing specifications:
 - **{{ANA}}** defines the structured elicitation format that the AS uses to communicate the challenge to the agent. The AS returns HTTP 400 with `error: "insufficient_authorization"` and an `elicitations` array that carries a human-readable `message` summarizing the agent_intent entries awaiting approval and a `requestedSchema` for authenticator selection. The agent renders this natively to the user. The agent MUST implement the `elicitations` response format defined in {{ANA}}.
 
 The authorization challenge request MUST include the `authorization_details` parameter carrying the `agent_intent` entries computed in Section 5.
+
+This document defines a synchronous approval model: the user is present at the agent and approves the intent within the agent's UX. Deployments where the user is not present MAY compose the same authorization request with the OpenID Client-Initiated Backchannel Authentication flow {{CIBA}} to deliver the approval out-of-band; the `authorization_details` semantics defined in this document are unchanged. A full asynchronous binding is out of scope for this version.
 
 ## Authorization Challenge Example
 
@@ -446,13 +473,13 @@ Cache-Control: no-store
 }
 ~~~
 
-The user reviews the two planned invocations (`disable_user` and `delete_user` on the identity server) and selects `passkey`. The passkey WebAuthn challenge delivery follows {{ANA}}; the WebAuthn ceremony is performed in-band by the first-party agent without browser interaction. On successful authentication, the AS issues a RAR token containing the approved `authorization_details`.
+The user reviews the two planned invocations (`disable_user` and `delete_user` on the identity server) and selects `passkey`. The passkey WebAuthn {{WEBAUTHN}} challenge delivery follows {{ANA}}; the WebAuthn ceremony is performed in-band by the first-party agent without browser interaction. On successful authentication, the AS issues a RAR token containing the approved `authorization_details`.
 
 # Token Structure
 
 ## RAR Token Claims
 
-The Authorization Server issues an OAuth 2.0 access token that carries the approved `authorization_details` as a top-level claim ({{RFC9396}}, Section 9). The token MUST contain:
+The Authorization Server issues an OAuth 2.0 access token that carries the approved `authorization_details` as a top-level claim ({{RFC9396}}, Section 9). This framework deliberately introduces no new token format: the approved intent travels in a standard OAuth 2.0 access token, and future work may additionally profile Transaction Tokens for downstream propagation (Section 7.3). The token MUST contain:
 
 - `sub`: The subject (user) who approved the intent.
 - `aud`: One or more server URIs identifying the Agentic Profile servers at which this token is valid. When the agent plans invocations across multiple servers, `aud` MUST be an array covering all server URIs referenced in the `authorization_details` entries (see Section 5.4 and {{RFC8707}}).
@@ -498,22 +525,26 @@ In orchestration scenarios, an agent may obtain a single RAR token covering all 
 
 The per-entry `resource.properties.aud` field (Section 5.2) is what makes this attenuation possible — it identifies which `agent_intent` entries belong to which server.
 
-Full specification of the attenuation exchange, including which claims MUST be preserved and which MAY be reduced, is deferred to a future version of this specification. Implementers MAY prototype this pattern using {{RFC8693}} token exchange or Transaction Tokens {{TXN-TOKENS}}.
+Full specification of the attenuation exchange, including which claims MUST be preserved and which MAY be reduced, is deferred to a future version of this specification. A key open design question is whether the attenuated token carries the filtered `agent_intent` entries directly, or references the approved intent via a dedicated context claim (e.g., the `actx` claim proposed for Transaction Tokens); see Appendix B. Implementers MAY prototype this pattern using {{RFC8693}} token exchange or Transaction Tokens {{TXN-TOKENS}}.
 
-# Enforcement
+# Runtime Enforcement
 
 ## Overview
 
-In the Agentic MCP Profile, the Enforcement Point (PEP) is an MCP server or MCP gateway that intercepts each tool invocation and evaluates whether the presented token authorizes that specific action on that specific resource before executing the tool. The same enforcement pattern applies to other Agentic Profiles (A2A, OpenAPI) — the profile determines the interception mechanism, but the SARC extraction and PDP call are identical across profiles.
+In the Agentic MCP Profile, the Policy Enforcement Point (PEP) is an MCP server or MCP gateway that intercepts each tool invocation and evaluates whether the presented token authorizes that specific action on that specific resource before executing the tool. The same enforcement pattern applies to other Agentic Profiles (A2A, OpenAPI) — the profile determines the interception mechanism, but the SARC extraction and PDP call are identical across profiles.
+
+Enforcement is not limited to a single point. In production deployments, additional PEPs MAY be placed at intermediate layers — an AI gateway or API gateway — so that the same SARC extraction and PDP evaluation is applied at multiple stages of the request path. This layered enforcement follows the Zero Trust principle of continuously verifying every invocation rather than relying on a single perimeter check.
 
 ## PEP Procedure
 
-When the agent calls a tool carrying a Bearer token, the PEP MUST:
+Enforcement comprises two checks: **intent verification** — the invocation is verified against the approved `agent_intent` entries in the token — and **policy evaluation** — the PDP evaluates the invocation against policy. When the PEP authorizes an invocation on the basis of an `agent_intent` entry, it MUST:
 
-1. Validate the token (signature, expiry, audience).
-2. Extract the `authorization_details` claim and identify the matching `agent_intent` entry for the current invocation. If no matching entry exists, the PEP MUST apply just-in-time re-authorization (Section 8.4).
-3. Extract the SARC parameters from the matching `agent_intent` entry and construct a PDP authorization request (Section 8.3).
-4. If the PDP returns `allow: true`, execute the invocation and return the result; otherwise reject the request with an appropriate error.
+1. If the access token is a JWT, validate it according to {{RFC9068}}. Token presentation follows {{RFC6750}}.
+2. Parse the invocation into its SARC representation (Section 4.2.1) and identify the matching `agent_intent` entry (Section 8.3). An entry authorizes only invocations that match it.
+3. Construct a PDP authorization request from the matched entry and the token (Section 8.4) and obtain a decision — Remote via AuthZEN, or Local via an embedded engine. An invocation that matches the approved intent may still be denied by policy.
+4. On `allow: true`, execute the invocation and return the result; otherwise reject the request with an appropriate error.
+
+When no `agent_intent` entry matches the invocation — or the token carries no `authorization_details` at all — the invocation is outside the scope of intent verification. Its disposition is a deployment decision, evaluated at the policy layer: the PDP may deny the request, may indicate that just-in-time authorization is required (Section 8.5), or may authorize it under the deployment's existing authorization model. The PEP enforces the resulting decision. This framework defines how intent is used when present; it does not mandate that every request carry intent.
 
 ## SARC Matching
 
@@ -521,12 +552,12 @@ The `agent_intent` entry carries the SARC parameters used to evaluate the author
 
 - **Subject**: sourced from the token's `sub` claim (not from the `agent_intent` entry).
 - **Action**: read from `agent_intent.action`.
-- **Resource**: read from `agent_intent.resource`, with `properties.arguments` replaced by the actual invocation arguments. The PEP SHOULD verify the actual arguments are consistent with the approved `resource.properties.arguments` before proceeding.
+- **Resource**: read from `agent_intent.resource`, with `properties.arguments` replaced by the actual invocation arguments. Every argument name present in the approved `resource.properties.arguments` MUST have an equal value in the actual invocation; an invocation whose arguments conflict with the approved values MUST NOT be authorized on the basis of that entry (Section 9.3). Arguments present in the invocation but absent from the approved set are conveyed to the PDP in the authorization request and are subject to policy evaluation.
 - **Context**: sourced from the token's `client_id` or `act` claim to identify the agent.
 
-For matching the invocation to the correct `agent_intent` entry, the PEP compares the invoked tool name against `resource.id` and the server's identity URI against `resource.properties.aud`.
+For matching the invocation to the correct `agent_intent` entry, the PEP compares the invoked tool name against `resource.id`, the server's identity URI against `resource.properties.aud`, and — when multiple entries reference the same tool — the actual arguments against each entry's `resource.properties.arguments`.
 
-Refer to {{AUTHZEN}} for the normative definition of the SARC model and its field semantics. Implementations using other PDP backends (e.g., Cedar, OPA) MUST extract the same SARC fields and map them to the PDP's native input format (Section 8.3).
+Refer to {{AUTHZEN}} for the normative definition of the SARC model and its field semantics. Implementations using other PDP backends (e.g., Cedar, OPA) MUST extract the same SARC fields and map them to the PDP's native input format (Section 8.4).
 
 ## PDP Request Construction
 
@@ -570,9 +601,11 @@ In both cases the SARC fields extracted from `agent_intent` are identical to tho
 
 ## Just-in-Time Re-Authorization
 
-If the PEP receives an invocation for which no matching `agent_intent` entry exists in the token, this may be because: (a) the tool has no `x-authz-mapping` in the agentic profile and was therefore excluded from the pre-computed authorization intent; (b) the agent is attempting an unplanned invocation; or (c) the approved intent did not include that tool. In all cases, the PEP cannot authorize the call from the existing token. A just-in-time re-authorization mechanism — where the PEP signals to the agent that it must obtain an additional `agent_intent` entry — is a noted extension point and is out of scope for this version.
+If the PEP receives an invocation for which no matching `agent_intent` entry exists in the token, this may be because: (a) the tool has no `x-authz-mapping` in the agentic profile and was therefore excluded from the pre-computed authorization intent; (b) the agent is attempting an unplanned invocation; or (c) the approved intent did not include that tool. In all cases, the invocation cannot be authorized on the basis of the token's intent. Where deployment policy requires intent for the tool, just-in-time re-authorization is the path to obtain it.
 
-Implementations encountering this case SHOULD return an HTTP 401 response with a `WWW-Authenticate` header that indicates the missing authorization, to facilitate future standardization of the JIT challenge. This applies regardless of the underlying Agentic Profile, as all profiles defined in this specification operate over HTTP.
+Implementations MAY reuse the {{ANA}} elicitation format to request the missing `agent_intent` entry from the user, following the same Review and Approve pattern described in Section 6: the agent obtains a new structured challenge, the user approves the additional operation, and the AS issues an updated token. However, this document does not yet normatively define how the PEP signals the missing authorization back to the agent mid-session, nor how the resulting token is merged with or supersedes the original session's token. Full specification of this JIT protocol binding is a noted extension point and is out of scope for this version.
+
+Implementations that choose just-in-time re-authorization SHOULD return an HTTP 401 response with a `WWW-Authenticate` header that indicates the missing authorization, to facilitate future standardization of the JIT challenge. This applies regardless of the underlying Agentic Profile, as all profiles defined in this specification operate over HTTP.
 
 # Security Considerations
 
@@ -582,21 +615,25 @@ The `authorization_details` entries in the issued token represent what the user 
 
 ## Cryptographically Approved Intent
 
-Because the user authorization phase requires strong authentication via {{ANA}} (e.g., a passkey gesture), the `authorization_details` in the issued token constitutes cryptographically approved intent: it is evidence that a specific human approved a specific set of actions on specific resources at a specific time, bound to a specific authentication event. This property is stronger than traditional OAuth scope consent, which may be granted once at login and silently reused across many subsequent operations.
+Because the user authorization phase requires strong, phishing-resistant authentication via {{ANA}} (e.g., a passkey gesture), the `authorization_details` in the issued token constitutes cryptographically approved intent: it is evidence that a specific human approved a specific set of actions on specific resources at a specific time, bound to a specific authentication event. This property is stronger than traditional OAuth scope consent, which may be granted once at login and silently reused across many subsequent operations.
 
 Implementations MUST NOT accept tokens whose `authorization_details` entries were approved via a weaker authentication method than the sensitivity of the authorized actions warrants. The AS SHOULD record the authentication method used during the approval gesture (e.g., as an `amr` or `acr` claim) so that enforcement points can verify the approval strength at tool-call time.
 
 ## Resource Binding at Enforcement
 
-The PEP MUST verify that the actual tool call parameters (e.g., the `userId` argument) match the resource ID carried in the approved `agent_intent` entry. An agent that presents a token approved for `alice` and then calls the tool with `userId=bob` MUST be rejected at enforcement time. This check closes the time-of-check-to-time-of-use gap for resource-level authorization.
+The PEP MUST verify that the actual tool call arguments (e.g., the `userId` argument) match the approved `resource.properties.arguments` carried in the `agent_intent` entry (Section 8.3). A token approved for `alice` MUST NOT authorize a call with `userId=bob` on the basis of that entry. This check closes the time-of-check-to-time-of-use gap for resource-level authorization.
+
+## Intent Entry Reuse
+
+An `agent_intent` entry is not single-use. Within the token's validity window, invocations matching the same entry may be repeated. Deployments for which repetition of an approved operation is a concern can mitigate it with short token lifetimes, stateful enforcement at the PEP, or policy-level controls at the PDP.
 
 ## Agent Identity
 
-This specification does not define how the agent authenticates to the AS or the PEP. Implementations SHOULD use strong agent identity (e.g., mTLS with SPIFFE/SVID, DPoP) to bind tokens to the agent and prevent token theft or misuse by other agents.
+This specification does not define how the agent authenticates to the AS or the PEP. Implementations SHOULD use strong agent identity (e.g., mTLS with SPIFFE/SVID {{SPIFFE}}, DPoP) to bind tokens to the agent and prevent token theft or misuse by other agents.
 
 ## Scope of User Consent
 
-The user approves a specific set of `agent_intent` entries. The agent MUST NOT invoke tools beyond those entries without first obtaining a new user approval. Enforcement points MUST reject invocations not covered by the token's `authorization_details`.
+The user approves a specific set of `agent_intent` entries. An `agent_intent` entry MUST NOT be used to authorize an invocation that does not match it. The agent MUST NOT intentionally invoke tools beyond the approved entries without obtaining a new user approval. Whether an invocation not covered by any entry may be authorized by other means is a deployment decision (Section 8.2); deployments should be aware that permitting broad fallback authorization for tools that declare `x-authz-mapping` weakens the guarantee that agent behavior remains within the user-approved plan.
 
 ## First-Party Agent Assumption
 
@@ -604,7 +641,7 @@ This specification is designed for first-party agents — agents operating in th
 
 # IANA Considerations
 
-TODO
+A future version of this document will request registration of the `agent_intent` authorization details type in the "OAuth Authorization Details Types" registry established by {{RFC9396}}. The type name used in this document is a working name; the final name will be determined before registration (see Appendix B). No IANA action is requested at this stage.
 
 --- back
 
@@ -624,7 +661,7 @@ The agent has access to one MCP server:
 
 - **Identity Server** (`urn:example:mcp:identity-server`) — tools: `disable_user`, `delete_user`, `list_users`
 
-### Phase 1: Discovery
+### Phase 1: Discover Required Authorization
 
 The agent reads the Agentic MCP Profile from the identity server and collects tools with `x-authz-mapping` in their `_meta`. The discovery corpus contains:
 
@@ -636,9 +673,9 @@ The agent reads the Agentic MCP Profile from the identity server and collects to
 
 `aud` is not in the per-tool mapping; the agent reads it from the Server Card (`urn:example:mcp:identity-server`).
 
-### Phase 2: Intent Computation (Intent Agent)
+### Phase 2: Compute Authorization Intent (Intent Agent)
 
-The Intent Agent receives the user's prompt and the discovery corpus. It resolves the CEL expressions against the prompt context and produces three `agent_intent` entries:
+The Intent Agent receives the user's prompt and the discovery corpus. It plans the tool calls from the prompt, resolves the CEL expressions against each planned call, and produces three `agent_intent` entries:
 
 ~~~json
 [
@@ -681,9 +718,9 @@ The Intent Agent receives the user's prompt and the discovery corpus. It resolve
 ]
 ~~~
 
-Note that `list_users` uses `filter: "disabled"` — the Intent Agent resolved this from the phrase "list all disabled users" in the prompt via the CEL expression `params.arguments.filter`.
+Note that `list_users` uses `filter: "disabled"` — the Intent Agent derived this value from the phrase "list all disabled users" in the prompt; the CEL expression `params.arguments.filter` maps the planned value into the entry.
 
-### Phase 3: User Authorization
+### Phase 3: Review and Approve
 
 The agent submits an authorization request to the AS carrying the three `agent_intent` entries:
 
@@ -763,7 +800,7 @@ The user reviews the three planned invocations and selects `passkey`. The passke
 }
 ~~~
 
-### Phase 4: Enforcement
+### Phase 4: Runtime Enforcement
 
 The agent calls each tool in sequence. The PEP matches each invocation against the token's `authorization_details` and calls the PDP before executing.
 
@@ -773,18 +810,17 @@ The agent calls each tool in sequence. The PEP matches each invocation against t
 User      Intent Agent      Agent           AS       Identity / PEP    PDP
  |              |              |              |               |           |
  | Prompt: "disable alice, delete, list disabled users"      |           |
- |------------->|              |              |               |           |
+ |---------------------------->|              |               |           |
  |              |              |              |               |           |
- |              | [Phase 1: Discovery]        |               |           |
- |              |<------------>|              |               |           |
- |              | Agentic Profile req |------------------------->         |
- |              |<-------------|<-Agentic Profile + x-authz-mapping------|
+ |              | [Phase 1: Discover Required Authorization]  |           |
+ |              |              |-Agentic Profile req--------->|           |
+ |              |              |<-Agentic Profile + x-authz-mapping------|
  |              |              |              |               |           |
- |              | [Phase 2: Intent Computation]               |           |
+ |              | [Phase 2: Compute Authorization Intent]     |           |
  |              |<-prompt + corpus-|           |               |           |
  |              |--3 agent_intent->|           |               |           |
  |              |              |              |               |           |
- |              | [Phase 3: User Authorization]               |           |
+ |              | [Phase 3: Review and Approve]               |           |
  |              |              |-Auth Req + 3 intents-------->|           |
  |              |              |<-elicitations challenge------|           |
  |<-present 3 intents----------|              |               |           |
@@ -792,7 +828,7 @@ User      Intent Agent      Agent           AS       Identity / PEP    PDP
  |              |              |-complete challenge---------->|           |
  |              |              |<-RAR token (3 agent_intent entries)------|
  |              |              |              |               |           |
- |              | [Phase 4: Enforcement]      |               |           |
+ |              | [Phase 4: Runtime Enforcement]|             |           |
  |              |              |-disable_user + token-------->|           |
  |              |              |              |               |--PDP req->|
  |              |              |              |               |<--allow---|
@@ -807,9 +843,68 @@ User      Intent Agent      Agent           AS       Identity / PEP    PDP
 
 The Intent Agent appears only during Phase 2: it receives the prompt and the discovery corpus, produces the three `agent_intent` entries, and plays no further role. The RAR token is presented to the single PEP for each tool call; the PEP evaluates each invocation independently against the token's `authorization_details`.
 
+# Open Items and Future Specifications
+
+This document defines a framework; individual components may mature into separate specifications as the work evolves through community feedback. The following open items are known at the time of writing. Each entry states the framework phase it belongs to, the related standards, and the point that remains to be specified.
+
+## A2A and OpenAPI Agentic Profile Bindings
+
+Phase:
+: 1 — Discover Required Authorization
+
+Related standards:
+: A2A Agent Card {{A2A}}, OpenAPI Specification {{OPENAPI}}
+
+Open point:
+: The profile-specific binding of `x-authz-mapping` — the CEL evaluation context and the `resource.type` literal — for each Agentic Profile type. The MCP binding is defined in this document (Section 4.2); the A2A and OpenAPI bindings are reserved (Sections 4.4 and 4.5).
+
+## agent_intent RAR Type Registration
+
+Phase:
+: 2 — Compute Authorization Intent
+
+Related standards:
+: OAuth 2.0 Rich Authorization Requests {{RFC9396}}, IANA "OAuth Authorization Details Types" registry
+
+Open point:
+: Registration of the final type name (`agent_intent` is a working name) and a formal JSON schema for the entry structure (Section 5.2).
+
+## Local PDP Normative Mappings
+
+Phase:
+: 4 — Runtime Enforcement
+
+Related standards:
+: OpenID AuthZEN {{AUTHZEN}} (normative in this document); Cedar, OPA (informative)
+
+Open point:
+: A normative mapping of the SARC fields extracted from the `agent_intent` entry to each local engine's native input format. This document describes the mapping informatively (Section 8.4); a conformance-grade binding per engine remains to be specified.
+
+## Intent-Aware Policy Evaluation
+
+Phase:
+: 4 — Runtime Enforcement
+
+Related standards:
+: OpenID AuthZEN {{AUTHZEN}}
+
+Open point:
+: How the approved intent participates in the policy decision. In the procedure described in Section 8.2, the PEP verifies the invocation against the token's `agent_intent` entries and the PDP evaluates policy without seeing the intent. An alternative is to convey the approved `agent_intent` entries to the PDP within the authorization request (e.g., in the AuthZEN `context`), so that intent verification and policy evaluation are performed together at the policy layer. Whether a normative profile for such intent-aware policy evaluation is needed remains to be specified.
+
+## Token Attenuation and Downscoping
+
+Phase:
+: Cross-phase — after Review and Approve (Phase 3), before Runtime Enforcement (Phase 4)
+
+Related standards:
+: OAuth 2.0 Token Exchange {{RFC8693}}, Transaction Tokens {{TXN-TOKENS}}
+
+Open point:
+: Whether the attenuated token carries the filtered `agent_intent` entries directly, or references the approved intent via a dedicated context claim (e.g., the `actx` claim proposed for Transaction Tokens). A related question is whether delegated authorization intent across orchestrated agent chains — e.g., a delegation chain expressed through nested `act` claims ({{RFC8693}}) — is in scope for this framework or deferred to companion work. Section 7.3 describes the intended pattern.
+
 # Acknowledgments
 
-The author thanks the contributors to the OpenID AuthZEN, the authors of draft-ietf-oauth-first-party-apps, the Mission-Bound Authorization work by Karl McGuinness, and the broader IETF OAuth Working Group.
+The author thanks the contributors to the OpenID AuthZEN Working Group, the authors of draft-ietf-oauth-first-party-apps, and the broader IETF OAuth Working Group.
 
 # Document History
 
