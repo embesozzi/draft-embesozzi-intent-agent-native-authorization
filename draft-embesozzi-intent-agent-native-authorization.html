@@ -1,0 +1,2780 @@
+<!DOCTYPE html>
+<html lang="en" class="Internet-Draft">
+<head>
+<meta charset="utf-8">
+<meta content="Common,Latin" name="scripts">
+<meta content="initial-scale=1.0" name="viewport">
+<title>Intent Agent Native Authorization for Agentic Profiles</title>
+<meta content="Martin Besozzi" name="author">
+<meta content="
+       This specification defines a framework that enables a first-party AI agent to obtain explicit user approval for the specific operations it plans to execute, and enables enforcement points to verify at runtime that every invocation remains within that approval. The agent discovers the authorization requirements that services publish in their agentic profiles, computes from the user's prompt a structured authorization intent expressed as Rich Authorization Request entries (RFC 9396), and obtains user approval through the native, browser-less challenge flow defined by OAuth 2.0 for First-Party Applications and OAuth 2.0 Agent Native Authorization. The resulting access token carries the approved intent; enforcement points verify each tool invocation against it using a Policy Decision Point, such as the OpenID AuthZEN Authorization API or a local policy engine. This framework is referred to as Intent Agent Native Authorization for Agentic Profiles (IANA-AP). 
+       This version defines the framework for the Model Context Protocol (MCP). Extension to Agent2Agent (A2A) and OpenAPI-described REST APIs is noted as future work. 
+    " name="description">
+<meta content="xml2rfc 3.34.0" name="generator">
+<meta content="authorization" name="keyword">
+<meta content="agent" name="keyword">
+<meta content="intent" name="keyword">
+<meta content="MCP" name="keyword">
+<meta content="AuthZEN" name="keyword">
+<meta content="SARC" name="keyword">
+<meta content="OAuth" name="keyword">
+<meta content="first-party" name="keyword">
+<meta content="draft-embesozzi-intent-agent-native-authorization-latest" name="ietf.draft">
+<!-- Generator version information:
+  xml2rfc 3.34.0
+    Python 3.14.5
+    ConfigArgParse 1.7.5
+    google-i18n-address 3.1.1
+    intervaltree 3.2.1
+    Jinja2 3.1.6
+    lxml 6.1.1
+    natsort 8.4.0
+    platformdirs 4.10.0
+    pycountry 24.6.1
+    PyYAML 6.0.3
+    requests 2.33.1
+    wcwidth 0.8.2
+-->
+<link href="draft-embesozzi-intent-agent-native-authorization.xml" rel="alternate" type="application/rfc+xml">
+<link href="#copyright" rel="license">
+<style type="text/css">@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Italic'), local('Lora-Italic'), url('https://martinthomson.github.io/rfc-css/fonts/lora-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Lora Regular'), local('Lora-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/lora-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-cyrillic.woff2') format('woff2');
+  unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-024F, U+0259, U+1E00-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Lora Bold'), local('Lora-Bold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-bold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: local('Lora SemiBold'), local('Lora-SemiBold'), url('https://martinthomson.github.io/rfc-css/fonts/lora-semibold-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Oxygen Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Oxygen Mono'), local('OxygenMono-Regular'), url('https://martinthomson.github.io/rfc-css/fonts/oxygenmono-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+}
+
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: italic;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic-ext.woff2') format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-greek.woff2') format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Sofia Sans Semi Condensed';
+  font-style: normal;
+  font-weight: 1 1000;
+  src: url('https://martinthomson.github.io/rfc-css/fonts/sofiasanssemicondensed-regular-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  color-scheme: light dark;
+  --background-color: #fff;
+  --text-color: #222;
+  --title-color: #191919;
+  --link-color: #2a6496;
+  --highlight-color: #f9f9f9;
+  --line-color: #eee;
+  --pilcrow-weak: #ddd;
+  --pilcrow-strong: #bbb;
+  --small-font-size: 14.5px;
+  --font-mono: 'Oxygen Mono', monospace;
+  --font-title: "Sofia Sans Semi Condensed", sans-serif;
+  scrollbar-color: #bbb #eee;
+}
+body {
+  max-width: 600px;
+  margin: 75px auto;
+  padding: 0 5px;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  font: 16px/22px "Lora", serif;
+  scroll-behavior: smooth;
+}
+
+.ears {
+  display: none;
+}
+
+/* headings */
+section {
+  clear: both;
+}
+.section-number {
+  padding-right: 0.5em;
+}
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title);
+  font-weight: 680;
+  margin: 0.8em 0 0.3em;
+  font-size-adjust: 0.5;
+  color: var(--title-color);
+}
+h1 {
+  &#title {
+    font-size: 32px;
+    line-height: 40px;
+    clear: both;
+    margin: 1.5em 0 0.2em;
+  }
+  &#rfcnum {
+    margin: 1.5em 0 0.2em;
+    & + h1#title {
+      margin: 0.2em 0;
+    }
+  }
+}
+
+h1, h2, h3 {
+  font-size: 22px;
+  line-height: 27px;
+}
+h4, h5, h6 {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+/* general structure */
+.author {
+  padding-bottom: 0.3em;
+  vertical-align: top;
+}
+#abstract+p {
+  font-size: 18px;
+  line-height: 24px;
+  & code, & samp, & tt {
+    font-size: 16px;
+    line-height: 0;
+  }
+}
+
+p {
+  padding: 0;
+  margin: 0.5em 0;
+  text-align: left;
+}
+div {
+  margin: 0;
+}
+.alignRight {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    margin: 0;
+    float: right;
+    clear: both;
+  }
+  & > *:nth-child(2) {
+    clear: both;
+    display: block;
+    border: none;
+  }
+}
+svg {
+  display: block;
+  /* font-family isn't space-separated, but =~ will have to do */
+  &[font-family~="monospace" i], & [font-family~="monospace" i] {
+    font-family: var(--font-mono);
+  }
+}
+.alignCenter {
+  margin: 1em 0;
+  &.art-text {
+    background-color: var(--highlight-color);
+    border: 1px solid var(--line-color);
+    border-radius: 3px;
+    padding: 0.5em 1em 0;
+    margin-bottom: 0.5em;
+    & pre {
+      padding: 0;
+      width: auto;
+    }
+  }
+  & > *:first-child {
+    border: none;
+    /* this isn't optimal, but it's an existence proof.  PrinceXML doesn't
+       support flexbox yet.
+    */
+    display: table;
+    margin: 0 auto;
+  }
+}
+
+/* lists */
+ol, ul {
+  padding: 0;
+  margin: 0 0 0.5em 2em;
+  & :is(ol, ul) {
+    margin-left: 1em;
+  }
+}
+li {
+  margin: 0 0 0.25em 0;
+}
+ul.empty, .ulEmpty {
+  list-style-type: none;
+  & li {
+    margin-top: 0.5em;
+  }
+}
+:is(ul, ol).compact, .ulCompact, .olCompact {
+  margin: 0 0 0 2em;
+  & li {
+    margin: 0;
+    & :first-child { margin-top: 0; }
+    & :last-child { margin-bottom: 0; }
+  }
+}
+
+/* definition lists */
+dl {
+  clear: left;
+  --indent: 3ch;
+  /* --indent: attr(indent ch); not supported in any browser, but we can dream */
+  &.olPercent {
+    --indent: 5ch;
+    & > dt {
+      min-width: calc(var(--indent) - 2ch);
+      float: none;
+    }
+  }
+
+  dl > dd > & {
+    margin-top: 0.5em;
+    margin-bottom: 0;
+  }
+
+  &:not(.dlNewline) > dt {
+    float: left;
+    margin-right: 2ch;
+    min-width: 8ch;
+  }
+  & > dd {
+    margin-bottom: .8em;
+    margin-left: var(--indent) !important; /* stupid element overrides */
+    min-height: 2ex;
+  }
+}
+:is(dl.compact, .dlCompact) > dd {
+  margin-bottom: 0;
+  & > :is(:first-child, .break:first-child + *) {
+    margin-top: 0;
+  }
+  & > :is(:last-child) {
+    margin-bottom: 0;
+  }
+}
+:is(dd, span).break {
+  display: none;
+}
+
+/* links */
+a {
+  text-decoration: none;
+  &[href] {
+    color: var(--link-color);
+    &:hover { text-decoration: underline; }
+    &.selfRef {
+      color: var(--text-color);
+      &:hover {
+        text-decoration: none;
+        background-color: var(--highlight-color);
+      }
+    }
+  }
+}
+.iref + a[href].internal {
+  color: var(--text-color);
+}
+a.xref:is(.cite, .auto), :is(#status-of-memo, #copyright) a {
+  white-space: nowrap;
+}
+
+/* Figures */
+tt, code, pre {
+  background-color: var(--highlight-color);
+  font: 14px/22px var(--font-mono);
+}
+tt, code {
+  /* changing the font for inline elements leads to different ascender
+     and descender heights; as we want to retain baseline alignment,
+     remove leading to avoid altering the final height of lines
+     note: this fails if these blocks take an entire line,
+     a different solution would be great */
+  line-height: 0;
+}
+:is(h1, h2, h3, h4, h5, h6) :is(tt, code) {
+  font-size: 84%;
+}
+pre {
+  border: 1px solid var(--line-color);
+  font-size: 13.5px;
+  line-height: 16px;
+  letter-spacing: -0.2px;
+  margin: 5px;
+  padding: 5px;
+}
+img {
+  max-width: 100%;
+}
+figure {
+  margin: 0.5em 0;
+  padding: 0;
+  & blockquote {
+    margin: 0.8em 0.4em 0.4em;
+  }
+}
+figcaption, caption {
+  font-style: italic;
+  margin: 0.5em 1.5em;
+  text-align: left;
+  caption-side: bottom;
+}
+@media screen {
+  /* Auto-collapse boilerplate. */
+  :is(#status-of-memo, #copyright) {
+    & p {
+      margin: -2px 0;
+      max-height: 0;
+      transition: max-height 2s ease, margin 0.5s ease 0.5s;
+      overflow: hidden;
+    }
+    &:hover p,
+    & h2:target ~ p {
+      margin: 0.5em 0;
+      max-height: 500px;
+      overflow: auto;
+    }
+  }
+  pre, svg {
+    display: inline-block;
+    /* In the horizontal direction, sometimes people make over-sized figures.
+       Scrollbars for those is therefore necessary: auto adds them as necessary..
+       In the vertical direction, the line-height can combine with the font
+       asender/descender height to produce scrollbars: hidden avoids that. */
+    overflow: auto hidden;
+  }
+  pre {
+    max-width: 100%;
+    width: calc(100% - 22px - 1em);
+  }
+  svg {
+    max-width: calc(100% - 22px - 1em);
+  }
+  figure pre {
+    display: block;
+    width: calc(100% - 25px);
+  }
+  :is(pre, svg) + .pilcrow {
+    display: inline-block;
+    vertical-align: text-bottom;
+    padding-bottom: 8px;
+  }
+}
+
+/* aside, blockquote */
+aside, blockquote {
+  margin-left: 0;
+  padding: 0 2em;
+  font-style: italic;
+}
+blockquote {
+  margin: 1em 0;
+  border-left: 2px var(--pilcrow-strong) solid;
+}
+cite {
+  display: block;
+  text-align: right;
+  font-style: italic;
+}
+
+/* tables */
+table {
+  width: auto;
+  max-width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+  &.right { margin-left: auto; }
+  &.center { margin-left: auto; margin-right: auto; }
+  &.left { margin-right: auto; }
+  & .text-left { text-align: left; }
+  & .text-center { text-align: center; }
+  & .text-right { text-align: right; }
+  & caption {
+    margin: 0;
+    padding: 3px 0 3px 1em;
+  }
+  & p { margin: 0; }
+}
+
+thead, tbody {
+  border: 1px solid var(--line-color);
+}
+th, td {
+  text-align: left;
+  vertical-align: top;
+  padding: 5px 10px;
+}
+th {
+  background-color: var(--line-color);
+}
+:is(tr:nth-child(2n), thead+tbody > tr:nth-child(2n+1)) > td {
+  background-color: var(--background-color);
+}
+:is(tr:nth-child(2n+1), thead+tbody > tr:nth-child(2n)) > td {
+  background-color: var(--highlight-color);
+}
+
+/* pilcrow */
+a.pilcrow {
+  margin-left: 3px;
+  opacity: 0.2;
+  user-select: none;
+  &[href] {
+    color: var(--pilcrow-weak);
+    &:hover { text-decoration: none; }
+  }
+  @media not print {
+    :hover > &, &:focus {
+      opacity: 1;
+    }
+    &[href]:hover {
+      color: var(--pilcrow-strong);
+      background-color: transparent;
+    }
+  }
+  @media print {
+    display: none;
+  }
+}
+
+/* misc */
+hr {
+  border: 0;
+  border-top: 1px solid var(--line-color);
+}
+.bcp14 {
+  font-variant: small-caps;
+  font-weight: 600;
+  font-size: var(--small-font-size);
+}
+.role {
+  font-variant: all-small-caps;
+}
+sub, sup {
+  line-height: 1;
+  font-size: 80%;
+}
+
+/* info block */
+#identifiers {
+  margin: 0;
+  font-size: var(--small-font-size);
+  line-height: 18px;
+  --identifier-width: 15ch;
+  & dt {
+    width: var(--identifier-width);
+    min-width: var(--identifier-width);
+    clear: left;
+    float: left;
+    text-align: right;
+    margin-right: 1ch;
+  }
+  & dd {
+    margin: 0;
+    margin-left: calc(1em + var(--identifier-width)) !important;
+    min-width: 5em;
+  }
+  & .authors {
+    & .author {
+      display: inline-block;
+      margin-right: 1.5em;
+    }
+    & .org {
+      font-style: italic;
+    }
+  }
+}
+
+/* The prepared/rendered info at the very bottom of the page */
+.docInfo {
+  color: #999;
+  font-size: 0.9em;
+  font-style: italic;
+  margin-top: 2em;
+  & .prepared {
+    float: right;
+  }
+}
+
+/* table of contents */
+#toc {
+  padding: 0.75em 0 2em 0;
+  margin-bottom: 1em;
+
+  & nav {
+    & ul {
+      margin: 0 0.5em 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    & li {
+      line-height: 1.3em;
+      margin: 2px 0;
+      padding-left: 1.2em;
+      text-indent: -1.2em;
+    }
+  }
+  & a.xref {
+    white-space: normal;
+  }
+}
+
+.references {
+  & > dt {
+    text-align: right;
+    font-weight: bold;
+    min-width: 10ch;
+    margin-right: 1.5ch;
+    &:target::before {
+      content: "⇒";
+      margin: 0 10px 0 -25px;
+    }
+  }
+  & > dd {
+    margin-left: 12ch !important;
+    overflow: visible;
+    & .refInstance {
+      margin-bottom: 0.8em;
+    }
+    & .ascii {
+      margin-bottom: 0.25em;
+    }
+  }
+}
+
+#rfc\.index\.index + ul {
+  margin-left: 0;
+}
+
+/* authors */
+address.vcard {
+  font-style: normal;
+  max-width: 20em;
+  margin: 1em auto 1em 0;
+
+  & .nameRole {
+    font-weight: 700;
+    margin-left: 0;
+  }
+  & .label {
+    margin: 0.5em 0;
+  }
+  & .type {
+    display: none;
+  }
+  & .alternative-contact {
+    margin: 0.5em 0 0.25em 0;
+  }
+  & .non-ascii {
+    margin: 0 0 0 2em;
+  }
+  & div.left {
+    text-align: left;
+  }
+  & div.right {
+    text-align: right;
+  }
+}
+
+hr.addr {
+  border-top: 1px dashed;
+  margin: 0;
+  color: #ddd;
+  max-width: calc(100% - 16px);
+}
+@media (min-width: 500px) {
+  #authors-addresses {
+    & > section {
+      column-count: 2;
+      column-gap: 20px;
+    }
+    & > section > h2 {
+      column-span: all;
+    }
+    /* hack for break-inside: avoid-column */
+    & address {
+      display: inline-block;
+      break-inside: avoid-column;
+    }
+  }
+}
+
+/* Comments */
+.rfcEditorRemove {
+  & p:first-of-type {
+    font-style: italic;
+  }
+}
+.cref {
+  background-color: rgba(249, 232, 105, 0.3);
+  padding: 2px 4px;
+}
+.crefSource {
+  font-style: italic;
+}
+
+@media screen {
+  #toc {
+    & nav {
+      font-family: var(--font-title);
+      font-weight: 360;
+      & > ul { margin-bottom: 2em; }
+      & ul {
+        margin: 0 0 0 4px;
+        & :is(p, li) {
+          margin: 2px 0;
+        }
+      }
+    }
+    & a.toplink {
+      float: right;
+    }
+  }
+}
+@media not screen {
+  #toc a.toplink {
+    display: none;
+  }
+}
+
+
+/* TOC layout for smaller screens */
+@media screen and (max-width: 929px) {
+  #toc {
+    position: fixed;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    padding: 1px 0 0 0;
+    margin: 0;
+    border-bottom: 1px solid #ccc;
+    opacity: 0.6;
+    & h2 {
+      margin: 0;
+      padding: 2px 0 2px 6px;
+      padding-right: 1em;
+      font-size: 18px;
+      line-height: 24px;
+      min-width: 190px;
+      text-align: right;
+      background-color: #444;
+      color: white;
+      cursor: pointer;
+      &::before { /* css hamburger */
+        float: right;
+        position: relative;
+        width: 1em;
+        height: 1px;
+        left: -164px;
+        margin: 8px 0 0 0;
+        background: white none repeat scroll 0 0;
+        box-shadow: 0 4px 0 0 white, 0 8px 0 0 white;
+        content: "";
+      }
+    }
+    & nav {
+      display: none;
+      background-color: var(--background-color);
+      padding: 0.5em 1em 1em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      height: calc(100vh - 48px);
+      border-left: 1px solid #ddd;
+    }
+    &.active {
+      opacity: 1;
+      & nav { display: block; }
+    }
+    /* Make the collapsed ToC header render white on gray also when it's a link */
+    & h2 a,
+    & h2 a:is(:link, :focus, :hover),
+    & a.toplink,
+    & a.toplink:hover {
+      color: white;
+      background-color: #444;
+      text-decoration: none;
+    }
+    & a.toplink {
+      margin: 2px 0.5em 0;
+    }
+  }
+}
+
+/* TOC layout for wide screens */
+@media screen and (min-width: 930px) {
+  body {
+    padding-right: 360px;
+    padding-right: calc(min(180px + 20%, 500px));
+  }
+  #toc {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    right: calc(50vw - 480px);
+    width: 312px;
+    margin: 0;
+    padding: 0;
+    z-index: 1;
+    & h2 {
+      margin: 0;
+      padding: 0.25em 1em 1em 0;
+    }
+    & nav {
+      display: block;
+      height: calc(90vh - 84px);
+      bottom: 0;
+      padding: 0.5em 0 2em;
+      overflow: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+    & a.toplink {
+      margin: 8px 0.5em 0;
+    }
+  }
+  img { /* future proofing */
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* pagination */
+@media print {
+  body {
+    width: 100%;
+  }
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+  #n-copyright-notice {
+    border-bottom: none;
+  }
+  #toc {
+    page-break-before: always;
+    border-top: none;
+    padding-top: 0;
+  }
+  #n-introduction {
+    page-break-before: always;
+  }
+  figure, pre, .vcard {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  :is(h2, h3, h4, h5, h6)+*, dd {
+    page-break-before: avoid;
+  }
+  pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 10pt;
+  }
+  table {
+    border: 1px solid #ddd;
+  }
+  td {
+    border-top: 1px solid #ddd;
+  }
+}
+
+@page :first {
+  padding-top: 0;
+  @top-left {
+    content: normal;
+    border: none;
+  }
+  @top-center {
+    content: normal;
+    border: none;
+  }
+  @top-right {
+    content: normal;
+    border: none;
+  }
+}
+
+@page {
+  size: A4;
+  margin-bottom: 45mm;
+  padding-top: 20px;
+}
+
+/* Dark mode. */
+@media (prefers-color-scheme: dark) {
+:root {
+  --background-color: #121212;
+  --text-color: #f0f0f0;
+  --title-color: #fff;
+  --link-color: #4da4f0;
+  --highlight-color: #282828;
+  --line-color: #444;
+  --pilcrow-weak: #444;
+  --pilcrow-strong: #666;
+  scrollbar-color: #777 #333;
+}
+}
+
+/* SVG Trick: a prefix match works because only black and white are allowed */
+svg {
+  & :is([stroke="black"], [stroke^="#000"]) {
+    stroke: var(--text-color);
+  }
+  & :is([stroke="white"], [stroke^="#fff"]) {
+    stroke: var(--background-color);
+  }
+  & :is([fill="black"], [fill^="#000"], :not([fill])) {
+    fill: var(--text-color);
+  }
+  & :is([fill="white"], [fill^="#fff"]) {
+    fill: var(--background-color);
+  }
+}
+</style>
+
+</head>
+<body class="xml2rfc">
+<table class="ears">
+<thead><tr>
+<td class="left">Internet-Draft</td>
+<td class="center">IANA-AP</td>
+<td class="right">July 2026</td>
+</tr></thead>
+<tfoot><tr>
+<td class="left">Besozzi</td>
+<td class="center">Expires 11 January 2027</td>
+<td class="right">[Page]</td>
+</tr></tfoot>
+</table>
+<div id="external-metadata" class="document-information"></div>
+<div id="internal-metadata" class="document-information">
+<dl id="identifiers">
+<dt class="label-workgroup">Workgroup:</dt>
+<dd class="workgroup">Network Working Group</dd>
+<dt class="label-internet-draft">Internet-Draft:</dt>
+<dd class="internet-draft">draft-embesozzi-intent-agent-native-authorization-latest</dd>
+<dt class="label-published">Published:</dt>
+<dd class="published">
+<time datetime="2026-07-10" class="published">10 July 2026</time>
+    </dd>
+<dt class="label-intended-status">Intended Status:</dt>
+<dd class="intended-status">Informational</dd>
+<dt class="label-expires">Expires:</dt>
+<dd class="expires"><time datetime="2027-01-11">11 January 2027</time></dd>
+<dt class="label-authors">Author:</dt>
+<dd class="authors">
+<div class="author">
+      <div class="author-name">M. Besozzi</div>
+<div class="org">Independent</div>
+</div>
+</dd>
+</dl>
+</div>
+<h1 id="title">Intent Agent Native Authorization for Agentic Profiles</h1>
+<section id="section-abstract">
+      <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
+<p id="section-abstract-1">This specification defines a framework that enables a first-party AI agent to obtain explicit user approval for the specific operations it plans to execute, and enables enforcement points to verify at runtime that every invocation remains within that approval. The agent discovers the authorization requirements that services publish in their agentic profiles, computes from the user's prompt a structured authorization intent expressed as Rich Authorization Request entries (RFC 9396), and obtains user approval through the native, browser-less challenge flow defined by OAuth 2.0 for First-Party Applications and OAuth 2.0 Agent Native Authorization. The resulting access token carries the approved intent; enforcement points verify each tool invocation against it using a Policy Decision Point, such as the OpenID AuthZEN Authorization API or a local policy engine. This framework is referred to as Intent Agent Native Authorization for Agentic Profiles (IANA-AP).<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-2">This version defines the framework for the Model Context Protocol (MCP). Extension to Agent2Agent (A2A) and OpenAPI-described REST APIs is noted as future work.<a href="#section-abstract-2" class="pilcrow">¶</a></p>
+</section>
+<div id="status-of-memo">
+<section id="section-boilerplate.1">
+        <h2 id="name-status-of-this-memo">
+<a href="#name-status-of-this-memo" class="section-name selfRef">Status of This Memo</a>
+        </h2>
+<p id="section-boilerplate.1-1">
+        This Internet-Draft is submitted in full conformance with the
+        provisions of BCP 78 and BCP 79.<a href="#section-boilerplate.1-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-2">
+        Internet-Drafts are working documents of the Internet Engineering Task
+        Force (IETF). Note that other groups may also distribute working
+        documents as Internet-Drafts. The list of current Internet-Drafts is
+        at <span><a href="https://datatracker.ietf.org/drafts/current/">https://datatracker.ietf.org/drafts/current/</a></span>.<a href="#section-boilerplate.1-2" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-3">
+        Internet-Drafts are draft documents valid for a maximum of six months
+        and may be updated, replaced, or obsoleted by other documents at any
+        time. It is inappropriate to use Internet-Drafts as reference
+        material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.1-4">
+        This Internet-Draft will expire on 11 January 2027.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="copyright">
+<section id="section-boilerplate.2">
+        <h2 id="name-copyright-notice">
+<a href="#name-copyright-notice" class="section-name selfRef">Copyright Notice</a>
+        </h2>
+<p id="section-boilerplate.2-1">
+            Copyright (c) 2026 IETF Trust and the persons identified as the
+            document authors. All rights reserved.<a href="#section-boilerplate.2-1" class="pilcrow">¶</a></p>
+<p id="section-boilerplate.2-2">
+            This document is subject to BCP 78 and the IETF Trust's Legal
+            Provisions Relating to IETF Documents
+            (<span><a href="https://trustee.ietf.org/license-info">https://trustee.ietf.org/license-info</a></span>) in effect on the date of
+            publication of this document. Please review these documents
+            carefully, as they describe your rights and restrictions with
+            respect to this document.<a href="#section-boilerplate.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="toc">
+<section id="section-toc.1">
+        <a href="#" onclick="scroll(0,0)" class="toplink">▲</a><h2 id="name-table-of-contents">
+<a href="#name-table-of-contents" class="section-name selfRef">Table of Contents</a>
+        </h2>
+<nav class="toc"><ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1">
+            <p id="section-toc.1-1.1.1" class="keepWithNext"><a href="#section-1" class="auto internal xref">1</a>.  <a href="#name-introduction" class="internal xref">Introduction</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1.2.1">
+                <p id="section-toc.1-1.1.2.1.1" class="keepWithNext"><a href="#section-1.1" class="auto internal xref">1.1</a>.  <a href="#name-relationship-to-existing-sp" class="internal xref">Relationship to Existing Specifications</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.1.2.2">
+                <p id="section-toc.1-1.1.2.2.1" class="keepWithNext"><a href="#section-1.2" class="auto internal xref">1.2</a>.  <a href="#name-requirements-notation" class="internal xref">Requirements Notation</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.2">
+            <p id="section-toc.1-1.2.1"><a href="#section-2" class="auto internal xref">2</a>.  <a href="#name-terminology" class="internal xref">Terminology</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.3">
+            <p id="section-toc.1-1.3.1"><a href="#section-3" class="auto internal xref">3</a>.  <a href="#name-protocol-overview" class="internal xref">Protocol Overview</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4">
+            <p id="section-toc.1-1.4.1"><a href="#section-4" class="auto internal xref">4</a>.  <a href="#name-agentic-profile-discovery" class="internal xref">Agentic Profile Discovery</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.1">
+                <p id="section-toc.1-1.4.2.1.1"><a href="#section-4.1" class="auto internal xref">4.1</a>.  <a href="#name-overview" class="internal xref">Overview</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.2">
+                <p id="section-toc.1-1.4.2.2.1"><a href="#section-4.2" class="auto internal xref">4.2</a>.  <a href="#name-authorization-mapping-in-ag" class="internal xref">Authorization Mapping in Agentic MCP Profile</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.2.2.1">
+                    <p id="section-toc.1-1.4.2.2.2.1.1"><a href="#section-4.2.1" class="auto internal xref">4.2.1</a>.  <a href="#name-cel-evaluation-context" class="internal xref">CEL Evaluation Context</a></p>
+</li>
+                </ul>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.3">
+                <p id="section-toc.1-1.4.2.3.1"><a href="#section-4.3" class="auto internal xref">4.3</a>.  <a href="#name-agent-discovery-procedure" class="internal xref">Agent Discovery Procedure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.4">
+                <p id="section-toc.1-1.4.2.4.1"><a href="#section-4.4" class="auto internal xref">4.4</a>.  <a href="#name-authorization-mapping-in-age" class="internal xref">Authorization Mapping in Agentic A2A Profile</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.4.2.5">
+                <p id="section-toc.1-1.4.2.5.1"><a href="#section-4.5" class="auto internal xref">4.5</a>.  <a href="#name-authorization-mapping-in-agen" class="internal xref">Authorization Mapping in Agentic OpenAPI Profile</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5">
+            <p id="section-toc.1-1.5.1"><a href="#section-5" class="auto internal xref">5</a>.  <a href="#name-compute-authorization-inten" class="internal xref">Compute Authorization Intent</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.1">
+                <p id="section-toc.1-1.5.2.1.1"><a href="#section-5.1" class="auto internal xref">5.1</a>.  <a href="#name-overview-2" class="internal xref">Overview</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.2">
+                <p id="section-toc.1-1.5.2.2.1"><a href="#section-5.2" class="auto internal xref">5.2</a>.  <a href="#name-agent_intent-rar-type" class="internal xref">agent_intent RAR Type</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.3">
+                <p id="section-toc.1-1.5.2.3.1"><a href="#section-5.3" class="auto internal xref">5.3</a>.  <a href="#name-subject-inference" class="internal xref">Subject Inference</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.5.2.4">
+                <p id="section-toc.1-1.5.2.4.1"><a href="#section-5.4" class="auto internal xref">5.4</a>.  <a href="#name-computation-procedure" class="internal xref">Computation Procedure</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6">
+            <p id="section-toc.1-1.6.1"><a href="#section-6" class="auto internal xref">6</a>.  <a href="#name-review-and-approve" class="internal xref">Review and Approve</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.6.2.1">
+                <p id="section-toc.1-1.6.2.1.1"><a href="#section-6.1" class="auto internal xref">6.1</a>.  <a href="#name-authorization-challenge-exa" class="internal xref">Authorization Challenge Example</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7">
+            <p id="section-toc.1-1.7.1"><a href="#section-7" class="auto internal xref">7</a>.  <a href="#name-token-structure" class="internal xref">Token Structure</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.1">
+                <p id="section-toc.1-1.7.2.1.1"><a href="#section-7.1" class="auto internal xref">7.1</a>.  <a href="#name-rar-token-claims" class="internal xref">RAR Token Claims</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.2">
+                <p id="section-toc.1-1.7.2.2.1"><a href="#section-7.2" class="auto internal xref">7.2</a>.  <a href="#name-example-token-payload" class="internal xref">Example Token Payload</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.7.2.3">
+                <p id="section-toc.1-1.7.2.3.1"><a href="#section-7.3" class="auto internal xref">7.3</a>.  <a href="#name-future-token-attenuation" class="internal xref">Future Token Attenuation</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8">
+            <p id="section-toc.1-1.8.1"><a href="#section-8" class="auto internal xref">8</a>.  <a href="#name-runtime-enforcement" class="internal xref">Runtime Enforcement</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.1">
+                <p id="section-toc.1-1.8.2.1.1"><a href="#section-8.1" class="auto internal xref">8.1</a>.  <a href="#name-overview-3" class="internal xref">Overview</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2">
+                <p id="section-toc.1-1.8.2.2.1"><a href="#section-8.2" class="auto internal xref">8.2</a>.  <a href="#name-pep-procedure" class="internal xref">PEP Procedure</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.3">
+                <p id="section-toc.1-1.8.2.3.1"><a href="#section-8.3" class="auto internal xref">8.3</a>.  <a href="#name-sarc-matching" class="internal xref">SARC Matching</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4">
+                <p id="section-toc.1-1.8.2.4.1"><a href="#section-8.4" class="auto internal xref">8.4</a>.  <a href="#name-pdp-request-construction" class="internal xref">PDP Request Construction</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.1">
+                    <p id="section-toc.1-1.8.2.4.2.1.1"><a href="#section-8.4.1" class="auto internal xref">8.4.1</a>.  <a href="#name-authzen-pdp" class="internal xref">AuthZEN PDP</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4.2.2">
+                    <p id="section-toc.1-1.8.2.4.2.2.1"><a href="#section-8.4.2" class="auto internal xref">8.4.2</a>.  <a href="#name-local-pdp-cedar-opa" class="internal xref">Local PDP (Cedar, OPA)</a></p>
+</li>
+                </ul>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.5">
+                <p id="section-toc.1-1.8.2.5.1"><a href="#section-8.5" class="auto internal xref">8.5</a>.  <a href="#name-just-in-time-re-authorizati" class="internal xref">Just-in-Time Re-Authorization</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9">
+            <p id="section-toc.1-1.9.1"><a href="#section-9" class="auto internal xref">9</a>.  <a href="#name-security-considerations" class="internal xref">Security Considerations</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.1">
+                <p id="section-toc.1-1.9.2.1.1"><a href="#section-9.1" class="auto internal xref">9.1</a>.  <a href="#name-intent-integrity" class="internal xref">Intent Integrity</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.2">
+                <p id="section-toc.1-1.9.2.2.1"><a href="#section-9.2" class="auto internal xref">9.2</a>.  <a href="#name-cryptographically-approved-" class="internal xref">Cryptographically Approved Intent</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.3">
+                <p id="section-toc.1-1.9.2.3.1"><a href="#section-9.3" class="auto internal xref">9.3</a>.  <a href="#name-resource-binding-at-enforce" class="internal xref">Resource Binding at Enforcement</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.4">
+                <p id="section-toc.1-1.9.2.4.1"><a href="#section-9.4" class="auto internal xref">9.4</a>.  <a href="#name-intent-entry-reuse" class="internal xref">Intent Entry Reuse</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.5">
+                <p id="section-toc.1-1.9.2.5.1"><a href="#section-9.5" class="auto internal xref">9.5</a>.  <a href="#name-agent-identity" class="internal xref">Agent Identity</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.6">
+                <p id="section-toc.1-1.9.2.6.1"><a href="#section-9.6" class="auto internal xref">9.6</a>.  <a href="#name-scope-of-user-consent" class="internal xref">Scope of User Consent</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.9.2.7">
+                <p id="section-toc.1-1.9.2.7.1"><a href="#section-9.7" class="auto internal xref">9.7</a>.  <a href="#name-first-party-agent-assumptio" class="internal xref">First-Party Agent Assumption</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.10">
+            <p id="section-toc.1-1.10.1"><a href="#section-10" class="auto internal xref">10</a>. <a href="#name-iana-considerations" class="internal xref">IANA Considerations</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11">
+            <p id="section-toc.1-1.11.1"><a href="#section-11" class="auto internal xref">11</a>. <a href="#name-references" class="internal xref">References</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.1">
+                <p id="section-toc.1-1.11.2.1.1"><a href="#section-11.1" class="auto internal xref">11.1</a>.  <a href="#name-normative-references" class="internal xref">Normative References</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.11.2.2">
+                <p id="section-toc.1-1.11.2.2.1"><a href="#section-11.2" class="auto internal xref">11.2</a>.  <a href="#name-informative-references" class="internal xref">Informative References</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12">
+            <p id="section-toc.1-1.12.1"><a href="#appendix-A" class="auto internal xref">Appendix A</a>.  <a href="#name-use-cases" class="internal xref">Use Cases</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1">
+                <p id="section-toc.1-1.12.2.1.1"><a href="#appendix-A.1" class="auto internal xref">A.1</a>.  <a href="#name-identity-management-multi-t" class="internal xref">Identity Management — Multi-Tool Authorization</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.1">
+                    <p id="section-toc.1-1.12.2.1.2.1.1"><a href="#appendix-A.1.1" class="auto internal xref">A.1.1</a>.  <a href="#name-scenario" class="internal xref">Scenario</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.2">
+                    <p id="section-toc.1-1.12.2.1.2.2.1"><a href="#appendix-A.1.2" class="auto internal xref">A.1.2</a>.  <a href="#name-phase-1-discover-required-a" class="internal xref">Phase 1: Discover Required Authorization</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.3">
+                    <p id="section-toc.1-1.12.2.1.2.3.1"><a href="#appendix-A.1.3" class="auto internal xref">A.1.3</a>.  <a href="#name-phase-2-compute-authorizati" class="internal xref">Phase 2: Compute Authorization Intent (Intent Agent)</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.4">
+                    <p id="section-toc.1-1.12.2.1.2.4.1"><a href="#appendix-A.1.4" class="auto internal xref">A.1.4</a>.  <a href="#name-phase-3-review-and-approve" class="internal xref">Phase 3: Review and Approve</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.5">
+                    <p id="section-toc.1-1.12.2.1.2.5.1"><a href="#appendix-A.1.5" class="auto internal xref">A.1.5</a>.  <a href="#name-phase-4-runtime-enforcement" class="internal xref">Phase 4: Runtime Enforcement</a></p>
+</li>
+                  <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.12.2.1.2.6">
+                    <p id="section-toc.1-1.12.2.1.2.6.1"><a href="#appendix-A.1.6" class="auto internal xref">A.1.6</a>.  <a href="#name-flow-diagram" class="internal xref">Flow Diagram</a></p>
+</li>
+                </ul>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13">
+            <p id="section-toc.1-1.13.1"><a href="#appendix-B" class="auto internal xref">Appendix B</a>.  <a href="#name-open-items-and-future-speci" class="internal xref">Open Items and Future Specifications</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.1">
+                <p id="section-toc.1-1.13.2.1.1"><a href="#appendix-B.1" class="auto internal xref">B.1</a>.  <a href="#name-a2a-and-openapi-agentic-pro" class="internal xref">A2A and OpenAPI Agentic Profile Bindings</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.2">
+                <p id="section-toc.1-1.13.2.2.1"><a href="#appendix-B.2" class="auto internal xref">B.2</a>.  <a href="#name-agent_intent-rar-type-regis" class="internal xref">agent_intent RAR Type Registration</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.3">
+                <p id="section-toc.1-1.13.2.3.1"><a href="#appendix-B.3" class="auto internal xref">B.3</a>.  <a href="#name-local-pdp-normative-mapping" class="internal xref">Local PDP Normative Mappings</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.4">
+                <p id="section-toc.1-1.13.2.4.1"><a href="#appendix-B.4" class="auto internal xref">B.4</a>.  <a href="#name-intent-aware-policy-evaluat" class="internal xref">Intent-Aware Policy Evaluation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.13.2.5">
+                <p id="section-toc.1-1.13.2.5.1"><a href="#appendix-B.5" class="auto internal xref">B.5</a>.  <a href="#name-token-attenuation-and-downs" class="internal xref">Token Attenuation and Downscoping</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.14">
+            <p id="section-toc.1-1.14.1"><a href="#appendix-C" class="auto internal xref">Appendix C</a>.  <a href="#name-acknowledgments" class="internal xref">Acknowledgments</a></p>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15">
+            <p id="section-toc.1-1.15.1"><a href="#appendix-D" class="auto internal xref">Appendix D</a>.  <a href="#name-document-history" class="internal xref">Document History</a></p>
+<ul class="compact toc ulBare ulEmpty">
+<li class="compact toc ulBare ulEmpty" id="section-toc.1-1.15.2.1">
+                <p id="section-toc.1-1.15.2.1.1"><a href="#appendix-D.1" class="auto internal xref">D.1</a>.  <a href="#name-draft-embesozzi-intent-agen" class="internal xref">draft-embesozzi-intent-agent-native-authorization-00</a></p>
+</li>
+            </ul>
+</li>
+          <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.16">
+            <p id="section-toc.1-1.16.1"><a href="#appendix-E" class="auto internal xref"></a><a href="#name-authors-address" class="internal xref">Author's Address</a></p>
+</li>
+        </ul>
+</nav>
+</section>
+</div>
+<div id="introduction">
+<section id="section-1">
+      <h2 id="name-introduction">
+<a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
+      </h2>
+<p id="section-1-1">OAuth 2.0 <span>[<a href="#RFC6749" class="cite xref">RFC6749</a>]</span> and its extensions define how credentials are issued and scoped. They do not define how an AI agent discovers what permissions a given agentic profile requires before execution, nor how the agent presents those requirements to a human user in a comprehensible form for approval before any tool is called.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-2">This gap is acute in first-party agentic deployments. A user instructs an agent to carry out a task. The agent must call one or more tools on MCP servers, A2A agents, or REST APIs. Each of those tools requires specific authorized actions on specific resources. Without a discovery mechanism, the agent either requests overly broad permissions upfront or fails at runtime when enforcement points reject its token.<a href="#section-1-2" class="pilcrow">¶</a></p>
+<p id="section-1-3">Traditional OAuth deployments grant permissions at login time: the user approves a set of scopes once, and every subsequent action is authorized implicitly under those scopes. This model is unsuitable for agentic deployments, where the specific actions and resources involved are not known until the user issues a prompt. It also answers only a single question — is this request allowed? — while agentic systems require an additional runtime guarantee: does this request belong to the execution plan the user explicitly approved?<a href="#section-1-3" class="pilcrow">¶</a></p>
+<p id="section-1-4">This specification provides that guarantee through a plan-before-execute model that shifts authorization from login time to runtime. The agent computes the exact intent from the user's prompt; the user approves it at the moment of action with a cryptographic gesture via <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>, natively within the agent's UX — no browser redirect — through a structured machine-readable challenge; and the resulting token is not a broad credential but a record of what the user chose to authorize for this specific task. Every subsequent invocation is verified against that approval at runtime.<a href="#section-1-4" class="pilcrow">¶</a></p>
+<p id="section-1-5">Before an AI agent can execute on behalf of a user, it must answer four questions:<a href="#section-1-5" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-1-6.1">
+          <p id="section-1-6.1.1">What authorization does each service require?<a href="#section-1-6.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-6.2">
+          <p id="section-1-6.2.1">Which operations is the agent planning to execute?<a href="#section-1-6.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-6.3">
+          <p id="section-1-6.3.1">Has the user explicitly approved those operations?<a href="#section-1-6.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-1-6.4">
+          <p id="section-1-6.4.1">Does every runtime invocation remain within that approval?<a href="#section-1-6.4.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-1-7">This document defines a framework with four phases, each answering one of these questions:<a href="#section-1-7" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-1-8">
+<li id="section-1-8.1">
+          <p id="section-1-8.1.1"><strong>Discover Required Authorization</strong>: The agent reads the SARC mappings published in the agentic profile's tool definitions before execution. For MCP, these mappings use the <code>x-authz-mapping</code> field defined in Section 4.2.<a href="#section-1-8.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-1-8.2">
+          <p id="section-1-8.2.1"><strong>Compute Authorization Intent</strong>: The agent maps the user's prompt against the discovered SARC entries to produce a set of <code>authorization_details</code> entries (<span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span>) that represent the precise set of authorized actions the user will be asked to approve.<a href="#section-1-8.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-1-8.3">
+          <p id="section-1-8.3.1"><strong>Review and Approve</strong>: The agent drives an OAuth 2.0 first-party authorization challenge carrying the computed <code>authorization_details</code>. The user sees the exact planned tool invocations and approves natively — no browser redirect — via a structured machine-readable challenge (<span>[<a href="#ANA" class="cite xref">ANA</a>]</span>). This phase follows <span>[<a href="#FIPA" class="cite xref">FIPA</a>]</span> and <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>.<a href="#section-1-8.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-1-8.4">
+          <p id="section-1-8.4.1"><strong>Runtime Enforcement</strong>: The agent presents the resulting token to the Policy Enforcement Point (PEP). The PEP maps each tool invocation to the token's <code>authorization_details</code>, extracts the SARC parameters, and calls a Policy Decision Point (PDP) for a fine-grained allow/deny decision. AuthZEN <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span> is the normative PDP interface; other compatible policy engines MAY be used.<a href="#section-1-8.4.1" class="pilcrow">¶</a></p>
+</li>
+      </ol>
+<p id="section-1-9">This framework is designed to be composable with existing infrastructure. An organization that has deployed OAuth 2.0, OpenID Connect, and AuthZEN-compatible Policy Enforcement Points can extend to intent-based authorization by adopting this specification without replacing any existing component. The Authorization Server, the Policy Decision Point, and the Agentic Profile are independently interchangeable — this specification defines the interfaces between them, not their implementations. An operator may start with a remote AuthZEN PDP and later replace it with a local Cedar or OPA engine; swap one MCP server for another; or adopt a different OAuth 2.0 AS — without modifying the framework. IANA-AP does not replace existing standards; it composes them.<a href="#section-1-9" class="pilcrow">¶</a></p>
+<p id="section-1-10">This document presents a unified view of the framework, intended as a reference integration point that shows how the four phases compose into a coherent whole. Based on community feedback, individual components may be specified in separate documents. The known open points and candidate future specifications are enumerated in Appendix B.<a href="#section-1-10" class="pilcrow">¶</a></p>
+<div id="relationship-to-existing-specifications">
+<section id="section-1.1">
+        <h3 id="name-relationship-to-existing-sp">
+<a href="#section-1.1" class="section-number selfRef">1.1. </a><a href="#name-relationship-to-existing-sp" class="section-name selfRef">Relationship to Existing Specifications</a>
+        </h3>
+<p id="section-1.1-1">This specification builds on and composes the following:<a href="#section-1.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-1.1-2.1">
+            <p id="section-1.1-2.1.1"><strong>COAZ <span>[<a href="#COAZ" class="cite xref">COAZ</a>]</span></strong>: Informatively referenced as the origin of the <code>x-authz-mapping</code> field concept and SARC-structured tool mapping. IANA-AP defines <code>x-authz-mapping</code> independently (Section 4.2) to be PDP-agnostic and AuthZEN-compatible, and intentionally diverges from COAZ's enforcement-time resource construction behavior (Section 8.4). COAZ is cited as background; IANA-AP implementations are not required to conform to it.<a href="#section-1.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-1.1-2.2">
+            <p id="section-1.1-2.2.1"><strong>RFC 9396 <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span></strong>: The <code>authorization_details</code> parameter and RAR token structure are used as-is. This specification defines a new RAR type <code>agent_intent</code> to carry SARC-structured intent entries.<a href="#section-1.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-1.1-2.3">
+            <p id="section-1.1-2.3.1"><strong>draft-ietf-oauth-first-party-apps <span>[<a href="#FIPA" class="cite xref">FIPA</a>]</span> and draft-embesozzi-oauth-agent-native-authorization <span>[<a href="#ANA" class="cite xref">ANA</a>]</span></strong>: The user authorization phase is fully delegated to these two specifications. This document normatively references them and does not respecify the challenge/response mechanics.<a href="#section-1.1-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-1.1-2.4">
+            <p id="section-1.1-2.4.1"><strong>AuthZEN <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span></strong>: The normative Remote PDP interface. This specification defines how the PEP constructs the AuthZEN request from the token's <code>authorization_details</code> and the active tool call. Implementations using a Local PDP (Cedar, OPA) follow the same SARC structure with a different evaluation mechanism (Section 8.4).<a href="#section-1.1-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+</section>
+</div>
+<div id="requirements-notation">
+<section id="section-1.2">
+        <h3 id="name-requirements-notation">
+<a href="#section-1.2" class="section-number selfRef">1.2. </a><a href="#name-requirements-notation" class="section-name selfRef">Requirements Notation</a>
+        </h3>
+<p id="section-1.2-1">The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 <span>[<a href="#RFC2119" class="cite xref">RFC2119</a>]</span> <span>[<a href="#RFC8174" class="cite xref">RFC8174</a>]</span> when, and only when, they appear in all capitals.<a href="#section-1.2-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="terminology">
+<section id="section-2">
+      <h2 id="name-terminology">
+<a href="#section-2" class="section-number selfRef">2. </a><a href="#name-terminology" class="section-name selfRef">Terminology</a>
+      </h2>
+<p id="section-2-1">The following terms are used in this document:<a href="#section-2-1" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-2-2">
+        <dt id="section-2-2.1">Agent:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.2">
+          <p id="section-2-2.2.1">A first-party AI agent acting on behalf of a human user. The agent reads agentic profiles, computes authorization intent, and drives the user authorization flow.<a href="#section-2-2.2.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.3">Agentic Profile:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.4">
+          <p id="section-2-2.4.1">A machine-readable description of a service that an agent can invoke. In this version, the Agentic MCP Profile is the authoritative source of tool definitions and authorization mappings — exposed via the MCP Server Card or a <code>tools/list</code> response, as defined by the MCP specification <span>[<a href="#MCP" class="cite xref">MCP</a>]</span>. Future versions extend this concept to A2A Agent Cards and OpenAPI descriptions.<a href="#section-2-2.4.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.5">SARC Model:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.6">
+          <p id="section-2-2.6.1">The Subject-Action-Resource-Context model as defined in <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span>. In this specification, SARC parameters are expressed in the <code>agent_intent</code> RAR type (Section 5.2); the <code>x-authz-mapping</code> field (Section 4.2) carries CEL expressions for <code>action</code>, <code>resource</code>, and <code>arguments</code> that are evaluated to populate the SARC fields at intent computation time.<a href="#section-2-2.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.7">Authorization Mapping:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.8">
+          <p id="section-2-2.8.1">The <code>x-authz-mapping</code> extension field within the <code>_meta</code> object of an agentic profile tool definition, as defined in Section 4.2. Its presence declares the tool as participating in IANA-AP (opt-in signal). It carries CEL expressions for <code>action</code>, <code>resource</code>, and <code>arguments</code> that the agent evaluates to construct the <code>agent_intent</code> entry.<a href="#section-2-2.8.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.9">Authorization Intent:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.10">
+          <p id="section-2-2.10.1">The set of <code>authorization_details</code> entries of type <code>agent_intent</code> that the agent computes from the user's prompt and the discovered SARC mappings. Each entry represents one planned tool invocation.<a href="#section-2-2.10.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.11">Intent Agent:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.12">
+          <p id="section-2-2.12.1">A specialized agent component that performs authorization intent planning. It operates before any tool invocation, consuming the discovery corpus and the user's prompt, and outputs the set of <code>agent_intent</code> entries for user approval. It has no tool execution capability. Implementations MAY realize this as a separate LLM call with a constrained system prompt dedicated solely to intent planning.<a href="#section-2-2.12.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.13">RAR Token:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.14">
+          <p id="section-2-2.14.1">An OAuth 2.0 access token that carries an <code>authorization_details</code> claim (<span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span>) containing one or more <code>agent_intent</code> entries.<a href="#section-2-2.14.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.15">Policy Enforcement Point (PEP):</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.16">
+          <p id="section-2-2.16.1">The component that intercepts tool invocations, extracts the token's <code>authorization_details</code>, and calls the PDP before executing the tool. A single abstract actor; in the Agentic MCP Profile this is an MCP server or MCP gateway; other profiles define their own equivalent enforcement points.<a href="#section-2-2.16.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.17">PDP:</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.18">
+          <p id="section-2-2.18.1">A Policy Decision Point that evaluates a SARC-structured authorization request and returns an allow or deny decision. This specification supports two deployment modes:
+- <strong>Remote PDP</strong>: The PEP calls an external authorization service over the network using the AuthZEN Authorization API <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span>. This is the normative interface defined in this specification.
+- <strong>Local PDP</strong>: The PEP evaluates policy locally using an embedded policy engine (e.g., Cedar, OPA). The PEP extracts the same SARC fields from the <code>agent_intent</code> entry and maps them to the engine's native input format.<a href="#section-2-2.18.1" class="pilcrow">¶</a></p>
+<p id="section-2-2.18.2">In both modes, the SARC parameters sourced from the <code>agent_intent</code> entry are identical.<a href="#section-2-2.18.2" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+<dt id="section-2-2.19">Authorization Server (AS):</dt>
+        <dd style="margin-left: 1.5em" id="section-2-2.20">
+          <p id="section-2-2.20.1">The OAuth 2.0 Authorization Server that issues RAR tokens after the user has approved the authorization intent via the first-party flow.<a href="#section-2-2.20.1" class="pilcrow">¶</a></p>
+</dd>
+      <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="protocol-overview">
+<section id="section-3">
+      <h2 id="name-protocol-overview">
+<a href="#section-3" class="section-number selfRef">3. </a><a href="#name-protocol-overview" class="section-name selfRef">Protocol Overview</a>
+      </h2>
+<p id="section-3-1">The following diagram shows the full four-phase flow. In this version of the
+specification, the Agentic Profile is an MCP Server; future versions extend this
+framework to A2A Agent Cards and OpenAPI descriptions (Sections 4.4 and 4.5).<a href="#section-3-1" class="pilcrow">¶</a></p>
+<div class="alignLeft art-text artwork" id="section-3-2">
+<pre>
+User          Agent          AS      Agentic Profile / PEP    PDP
+ |              |             |                    |                |
+ |              | [Phase 1: Discover Required Authorization]        |                |
+ |              |             |                    |                |
+ |  (1) Prompt  |             |                    |                |
+ |-------------&gt;|             |                    |                |
+ |              |             |                    |                |
+ |              | (2) Agentic Profile request       |                |
+ |              |----------------------------------&gt;|                |
+ |              | (3) Agentic Profile + x-authz-mapping             |
+ |              |&lt;----------------------------------|                |
+ |              |             |                    |                |
+ |              | [Phase 2: Compute Authorization Intent]           |                |
+ |              |             |                    |                |
+ |              | (4) Compute authorization_details (agent_intent)  |
+ |              |             |                    |                |
+ |              | [Phase 3: Review and Approve]     |                |
+ |              |             |                    |                |
+ |              | (5) Auth Req + authorization_details     |                |
+ |              |------------&gt;|                    |                |
+ |              |             |                    |                |
+ |  (6) Present intent for approval (via ANA)      |                |
+ |&lt;-------------|             |                    |                |
+ |              |             |                    |                |
+ |  (7) Approve (passkey / strong authn)           |                |
+ |-------------&gt;|             |                    |                |
+ |              | (8) Complete challenge            |                |
+ |              |------------&gt;|                    |                |
+ |              | (9) RAR token (authorization_details: agent_intent)|
+ |              |&lt;------------|                    |                |
+ |              |             |                    |                |
+ |              | [Phase 4: Runtime Enforcement]     |                |
+ |              |             |                    |                |
+ |              | (10) Tool call + Bearer RAR token|                |
+ |              |----------------------------------&gt;|                |
+ |              |             |                    | (11) PDP       |
+ |              |             |                    |  Request       |
+ |              |             |                    |---------------&gt;|
+ |              |             |                    | (12) Decision  |
+ |              |             |                    |&lt;---------------|
+ |              |             |                    |                |
+ |              | (13) Tool result                 |                |
+ |              |&lt;----------------------------------|                |
+</pre><a href="#section-3-2" class="pilcrow">¶</a>
+</div>
+<p id="section-3-3">Steps:<a href="#section-3-3" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-3-4">
+<li id="section-3-4.1">
+          <p id="section-3-4.1.1">The user submits a natural language prompt to the agent.<a href="#section-3-4.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.2">
+          <p id="section-3-4.2.1">The agent reads the Agentic MCP Profile (via the MCP Server Card or <code>tools/list</code> response, as supported by the server).<a href="#section-3-4.2.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.3">
+          <p id="section-3-4.3.1">The Agentic Profile returns tool definitions including <code>x-authz-mapping</code> entries as defined in Section 4.2.<a href="#section-3-4.3.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.4">
+          <p id="section-3-4.4.1">The agent maps the prompt against the discovered authorization mappings to compute an <code>authorization_details</code> array of <code>agent_intent</code> entries (Section 5).<a href="#section-3-4.4.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.5">
+          <p id="section-3-4.5.1">The agent submits an authorization request to the AS carrying the computed <code>authorization_details</code>, following the flow defined in <span>[<a href="#FIPA" class="cite xref">FIPA</a>]</span> and <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>.<a href="#section-3-4.5.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.6">
+          <p id="section-3-4.6.1">The AS returns an authorization challenge; the agent presents the intent to the user following <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>.<a href="#section-3-4.6.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.7">
+          <p id="section-3-4.7.1">The user reviews the presented SARC entries and approves with strong authentication (e.g., passkey).<a href="#section-3-4.7.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.8">
+          <p id="section-3-4.8.1">The agent completes the challenge response following <span>[<a href="#FIPA" class="cite xref">FIPA</a>]</span> and <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>.<a href="#section-3-4.8.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.9">
+          <p id="section-3-4.9.1">The AS issues a RAR token containing the approved <code>authorization_details</code>.<a href="#section-3-4.9.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.10">
+          <p id="section-3-4.10.1">The agent calls the tool on the Agentic Profile, presenting the RAR token as a Bearer token.<a href="#section-3-4.10.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.11">
+          <p id="section-3-4.11.1">The PEP maps the tool call to the matching <code>agent_intent</code> entry in the token and calls the PDP (Remote via AuthZEN, or Local via an embedded engine).<a href="#section-3-4.11.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.12">
+          <p id="section-3-4.12.1">The PDP returns an allow or deny decision.<a href="#section-3-4.12.1" class="pilcrow">¶</a></p>
+</li>
+        <li id="section-3-4.13">
+          <p id="section-3-4.13.1">On allow, the PEP executes the tool and returns the result.<a href="#section-3-4.13.1" class="pilcrow">¶</a></p>
+</li>
+      </ol>
+</section>
+</div>
+<div id="agentic-profile-discovery">
+<section id="section-4">
+      <h2 id="name-agentic-profile-discovery">
+<a href="#section-4" class="section-number selfRef">4. </a><a href="#name-agentic-profile-discovery" class="section-name selfRef">Agentic Profile Discovery</a>
+      </h2>
+<div id="overview">
+<section id="section-4.1">
+        <h3 id="name-overview">
+<a href="#section-4.1" class="section-number selfRef">4.1. </a><a href="#name-overview" class="section-name selfRef">Overview</a>
+        </h3>
+<p id="section-4.1-1">Before computing an authorization intent, the agent MUST discover the authorization mappings for the tools it plans to invoke. The discovery mechanism is profile-specific: each Agentic Profile type exposes mappings in a different way. This section defines discovery for the MCP profile and reserves subsections for A2A and OpenAPI profiles.<a href="#section-4.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authorization-mapping-in-agentic-mcp-profile">
+<section id="section-4.2">
+        <h3 id="name-authorization-mapping-in-ag">
+<a href="#section-4.2" class="section-number selfRef">4.2. </a><a href="#name-authorization-mapping-in-ag" class="section-name selfRef">Authorization Mapping in Agentic MCP Profile</a>
+        </h3>
+<p id="section-4.2-1">This specification defines the <code>x-authz-mapping</code> extension field for declaring that a tool participates in IANA-AP and for expressing the full SARC model as CEL expressions. The field is inspired by the COAZ profile <span>[<a href="#COAZ" class="cite xref">COAZ</a>]</span> and is designed to be AuthZEN-compatible while remaining PDP-agnostic.<a href="#section-4.2-1" class="pilcrow">¶</a></p>
+<p id="section-4.2-2">The <code>x-authz-mapping</code> field serves two purposes: (1) as an opt-in signal — its presence declares the tool participates in IANA-AP; (2) as a SARC mapping — its CEL expressions define how to derive <code>action</code>, <code>resource</code>, and call <code>arguments</code> from the request context at both intent computation time and enforcement time.<a href="#section-4.2-2" class="pilcrow">¶</a></p>
+<p id="section-4.2-3">The field contains three sub-objects:<a href="#section-4.2-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-4.2-4.1">
+            <p id="section-4.2-4.1.1"><code>action</code>: CEL expressions for the <code>action</code> component of the SARC model.<a href="#section-4.2-4.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.2-4.2">
+            <p id="section-4.2-4.2.1"><code>resource</code>: CEL expressions for the <code>resource</code> component. Single-quoted strings (e.g., <code>'mcp-tool'</code>) are CEL string literals.<a href="#section-4.2-4.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-4.2-4.3">
+            <p id="section-4.2-4.3.1"><code>arguments</code>: a map of argument names to CEL expressions that resolve argument values from the planned call at intent computation time (Section 5.4).<a href="#section-4.2-4.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-4.2-5"><code>resource.properties.aud</code> is NOT carried in the per-tool mapping. It is sourced from the MCP Server Card at intent computation time (the server-level identity URI is a server-scoped, not tool-scoped, attribute). When the server does not publish a Server Card (discovery via <code>tools/list</code> only), the agent SHOULD use the server's canonical resource identifier — the same value used as the <code>resource</code> parameter in the authorization request (<span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span>) — as the <code>aud</code> value.<a href="#section-4.2-5" class="pilcrow">¶</a></p>
+<div id="cel-evaluation-context">
+<section id="section-4.2.1">
+          <h4 id="name-cel-evaluation-context">
+<a href="#section-4.2.1" class="section-number selfRef">4.2.1. </a><a href="#name-cel-evaluation-context" class="section-name selfRef">CEL Evaluation Context</a>
+          </h4>
+<p id="section-4.2.1-1">Expression evaluation uses Common Expression Language (CEL) <span>[<a href="#CEL" class="cite xref">CEL</a>]</span>. The use of CEL expressions in tool authorization mappings follows the convention established by the COAZ profile <span>[<a href="#COAZ" class="cite xref">COAZ</a>]</span>. The evaluation context is defined for both Phase 2 (planned call) and Phase 4 (actual MCP request) — with the exception of the <code>token</code> variable, available only at Phase 4 — enabling the same expressions to be evaluated by both the agent and the PEP:<a href="#section-4.2.1-1" class="pilcrow">¶</a></p>
+<table class="center" id="table-1">
+            <caption><a href="#table-1" class="selfRef">Table 1</a></caption>
+<thead>
+              <tr>
+                <th class="text-left" rowspan="1" colspan="1">CEL variable</th>
+                <th class="text-left" rowspan="1" colspan="1">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.method</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">MCP JSON-RPC method name (e.g., <code>"tools/call"</code>)</td>
+              </tr>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.name</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">Tool name from the request (e.g., <code>"disable_user"</code>)</td>
+              </tr>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.arguments.X</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">Argument X from the tool call parameters</td>
+              </tr>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>token.X</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">Claim X from the caller's JWT</td>
+              </tr>
+            </tbody>
+          </table>
+<p id="section-4.2.1-3">At Phase 2, the agent evaluates the expressions against the planned call to construct the <code>agent_intent</code> entry. At Phase 4, the PEP evaluates the same expressions against the actual incoming MCP request to construct the SARC representation of the attempted call, which is used to verify the invocation against the approved <code>agent_intent</code> entry (Section 8.2). The <code>token</code> variable is defined only at Phase 4, where the PEP evaluates expressions against the actual request and the presented token; expressions that are evaluated at Phase 2 to construct <code>agent_intent</code> entries cannot reference <code>token</code>.<a href="#section-4.2.1-3" class="pilcrow">¶</a></p>
+<p id="section-4.2.1-4">An MCP tool that wishes to support pre-computed authorization intent MUST include an <code>x-authz-mapping</code> field within its <code>_meta</code> object. Tools that omit this field cannot be pre-authorized; when the agent calls such a tool, no matching <code>agent_intent</code> entry will exist and the invocation is handled as described in Section 8.2.<a href="#section-4.2.1-4" class="pilcrow">¶</a></p>
+<p id="section-4.2.1-5">A conforming tool definition example:<a href="#section-4.2.1-5" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-4.2.1-6">
+<pre>
+{
+  "name": "disable_user",
+  "description": "Disable a user account by userId.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "userId": { "type": "string" }
+    },
+    "required": ["userId"]
+  },
+  "_meta": {
+    "x-authz-mapping": {
+      "action":   { "name": "params.method" },
+      "resource": { "type": "'mcp-tool'", "id": "params.name" },
+      "arguments": { "userId": "params.arguments.userId" }
+    }
+  }
+}
+</pre><a href="#section-4.2.1-6" class="pilcrow">¶</a>
+</div>
+<p id="section-4.2.1-7">For tools with no call arguments, <code>arguments</code> MAY be omitted:<a href="#section-4.2.1-7" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-4.2.1-8">
+<pre>
+"_meta": {
+  "x-authz-mapping": {
+    "action":   { "name": "params.method" },
+    "resource": { "type": "'mcp-tool'", "id": "params.name" }
+  }
+}
+</pre><a href="#section-4.2.1-8" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+</section>
+</div>
+<div id="agent-discovery-procedure">
+<section id="section-4.3">
+        <h3 id="name-agent-discovery-procedure">
+<a href="#section-4.3" class="section-number selfRef">4.3. </a><a href="#name-agent-discovery-procedure" class="section-name selfRef">Agent Discovery Procedure</a>
+        </h3>
+<p id="section-4.3-1">The agent MUST perform discovery before execution begins, not lazily at the point of each tool call. Specifically:<a href="#section-4.3-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-4.3-2">
+<li id="section-4.3-2.1">
+            <p id="section-4.3-2.1.1">The agent reads the Agentic MCP Profile from each MCP server it intends to use (via the MCP Server Card or <code>tools/list</code> response, as supported by the server <span>[<a href="#MCP" class="cite xref">MCP</a>]</span>).<a href="#section-4.3-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-4.3-2.2">
+            <p id="section-4.3-2.2.1">For each tool in the profile, the agent checks for the presence of <code>x-authz-mapping</code> within the tool's <code>_meta</code> object.<a href="#section-4.3-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-4.3-2.3">
+            <p id="section-4.3-2.3.1">The agent retains the set of tools with an <code>x-authz-mapping</code> entry as the discovery corpus for intent computation.<a href="#section-4.3-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-4.3-3">Tools without an <code>x-authz-mapping</code> field in their <code>_meta</code> cannot be included in the pre-computed authorization intent; calls to such tools are handled as described in Section 8.2.<a href="#section-4.3-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authorization-mapping-in-agentic-a2a-profile">
+<section id="section-4.4">
+        <h3 id="name-authorization-mapping-in-age">
+<a href="#section-4.4" class="section-number selfRef">4.4. </a><a href="#name-authorization-mapping-in-age" class="section-name selfRef">Authorization Mapping in Agentic A2A Profile</a>
+        </h3>
+<p id="section-4.4-1">This section is reserved for future specification. A future version of this document will define an equivalent discovery procedure for A2A Agent Cards <span>[<a href="#A2A" class="cite xref">A2A</a>]</span>, where SARC mappings are expressed as an extension to the Agent Card JSON document served at <code>/.well-known/agent.json</code>. The <code>x-authz-mapping</code> field structure (<code>action</code>, <code>resource</code>, <code>arguments</code> as CEL expressions) is profile-agnostic; a future A2A binding will define the appropriate CEL evaluation context and <code>resource.type</code> literal for that profile.<a href="#section-4.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="authorization-mapping-in-agentic-openapi-profile">
+<section id="section-4.5">
+        <h3 id="name-authorization-mapping-in-agen">
+<a href="#section-4.5" class="section-number selfRef">4.5. </a><a href="#name-authorization-mapping-in-agen" class="section-name selfRef">Authorization Mapping in Agentic OpenAPI Profile</a>
+        </h3>
+<p id="section-4.5-1">This section is reserved for future specification. A future version of this document will define an equivalent discovery procedure for REST APIs described with OpenAPI <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span>, where SARC mappings are expressed as an <code>x-authz-mapping</code> extension field on individual operation objects. A future OpenAPI binding will define the CEL evaluation context and <code>resource.type</code> literal appropriate for that profile.<a href="#section-4.5-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="compute-authorization-intent">
+<section id="section-5">
+      <h2 id="name-compute-authorization-inten">
+<a href="#section-5" class="section-number selfRef">5. </a><a href="#name-compute-authorization-inten" class="section-name selfRef">Compute Authorization Intent</a>
+      </h2>
+<div id="overview-1">
+<section id="section-5.1">
+        <h3 id="name-overview-2">
+<a href="#section-5.1" class="section-number selfRef">5.1. </a><a href="#name-overview-2" class="section-name selfRef">Overview</a>
+        </h3>
+<p id="section-5.1-1">Intent computation is the process by which the agent translates a user's natural language prompt, together with the discovered authorization mappings (<code>x-authz-mapping</code>), into a concrete set of <code>authorization_details</code> entries of type <code>agent_intent</code>. These entries represent the exact tool invocations the agent plans to make and the specific resources and actions involved. This role MAY be realized as a dedicated Intent Agent — a constrained component with no tool execution capability, whose sole responsibility is authorization intent planning (see Terminology).<a href="#section-5.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="agentintent-rar-type">
+<section id="section-5.2">
+        <h3 id="name-agent_intent-rar-type">
+<a href="#section-5.2" class="section-number selfRef">5.2. </a><a href="#name-agent_intent-rar-type" class="section-name selfRef">agent_intent RAR Type</a>
+        </h3>
+<p id="section-5.2-1">This specification defines a new Rich Authorization Requests <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span> type with the working name <code>agent_intent</code>. The type name is subject to IANA registration (Section 10).<a href="#section-5.2-1" class="pilcrow">¶</a></p>
+<p id="section-5.2-2">An <code>agent_intent</code> entry is structured as a SARC-based request template compatible with the AuthZEN Authorization API <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span>. The PEP reads it directly, replaces <code>resource.properties.arguments</code> with the actual call arguments, adds the <code>subject</code> from the token, and calls the PDP — no structural translation required.<a href="#section-5.2-2" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-5.2-3">
+<pre>
+{
+  "type": "agent_intent",
+  "action": { "name": "tools/call" },
+  "resource": {
+    "type": "mcp-tool",
+    "id": "disable_user",
+    "properties": {
+      "aud": "urn:example:mcp:identity-server",
+      "arguments": { "userId": "alice" }
+    }
+  }
+}
+</pre><a href="#section-5.2-3" class="pilcrow">¶</a>
+</div>
+<p id="section-5.2-4">The fields are:<a href="#section-5.2-4" class="pilcrow">¶</a></p>
+<span class="break"></span><dl class="dlParallel" id="section-5.2-5">
+          <dt id="section-5.2-5.1">type:</dt>
+          <dd style="margin-left: 1.5em" id="section-5.2-5.2">
+            <p id="section-5.2-5.2.1">REQUIRED. The string <code>agent_intent</code>.<a href="#section-5.2-5.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="section-5.2-5.3">action:</dt>
+          <dd style="margin-left: 1.5em" id="section-5.2-5.4">
+            <p id="section-5.2-5.4.1">REQUIRED. An object with a <code>name</code> field. For MCP, <code>name</code> is always the string <code>"tools/call"</code> — the protocol-level method name, uniform across all MCP tool invocations.<a href="#section-5.2-5.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="section-5.2-5.5">resource:</dt>
+          <dd style="margin-left: 1.5em" id="section-5.2-5.6">
+            <p id="section-5.2-5.6.1">REQUIRED. An object with the following fields:
+- <code>type</code>: the string <code>"mcp-tool"</code>
+- <code>id</code>: the tool name being invoked
+- <code>properties.aud</code>: the URI identifying the MCP server
+- <code>properties.arguments</code>: the approved call arguments resolved from the user's prompt<a href="#section-5.2-5.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="subject-inference">
+<section id="section-5.3">
+        <h3 id="name-subject-inference">
+<a href="#section-5.3" class="section-number selfRef">5.3. </a><a href="#name-subject-inference" class="section-name selfRef">Subject Inference</a>
+        </h3>
+<p id="section-5.3-1">The <code>agent_intent</code> entry does not carry a Subject field. The Subject is the principal who approved the token, identified by the <code>sub</code> claim of the RAR token (<span>[<a href="#RFC7519" class="cite xref">RFC7519</a>]</span>). The agent's identity, if relevant to policy evaluation, is carried at the token level — in the <code>client_id</code> claim or the <code>act</code> claim (<span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span>) — not inside individual <code>agent_intent</code> entries. The PEP reads agent identity from the token directly when constructing the PDP request <code>context</code> (Section 8.3).<a href="#section-5.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="computation-procedure">
+<section id="section-5.4">
+        <h3 id="name-computation-procedure">
+<a href="#section-5.4" class="section-number selfRef">5.4. </a><a href="#name-computation-procedure" class="section-name selfRef">Computation Procedure</a>
+        </h3>
+<p id="section-5.4-1">The following procedure applies to the Agentic MCP Profile. Future versions of this specification define equivalent procedures for A2A and OpenAPI profiles.<a href="#section-5.4-1" class="pilcrow">¶</a></p>
+<p id="section-5.4-2">The agent MUST compute the authorization intent as follows:<a href="#section-5.4-2" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-5.4-3">
+<li id="section-5.4-3.1">
+            <p id="section-5.4-3.1.1">For each tool the agent determines it will call (based on the user's prompt and the available tool definitions), locate the corresponding <code>x-authz-mapping</code> entry from the discovery corpus (Section 4.2). If no <code>x-authz-mapping</code> entry exists for a tool, that tool MUST NOT be included in the pre-computed authorization intent; the agent MAY still attempt to call it; the invocation is then handled as described in Section 8.2.<a href="#section-5.4-3.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-5.4-3.2">
+            <p id="section-5.4-3.2.1">Evaluate the <code>x-authz-mapping</code> CEL expressions against the planned call context (Section 4.2) to construct the <code>agent_intent</code> entry:<a href="#section-5.4-3.2.1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-5.4-3.2.2.1">
+                <p id="section-5.4-3.2.2.1.1"><code>action.name</code>: evaluate <code>x-authz-mapping.action.name</code> (e.g., <code>params.method</code> → <code>"tools/call"</code>)<a href="#section-5.4-3.2.2.1.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-5.4-3.2.2.2">
+                <p id="section-5.4-3.2.2.2.1"><code>resource.type</code>: evaluate <code>x-authz-mapping.resource.type</code> (e.g., <code>'mcp-tool'</code> → <code>"mcp-tool"</code>)<a href="#section-5.4-3.2.2.2.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-5.4-3.2.2.3">
+                <p id="section-5.4-3.2.2.3.1"><code>resource.id</code>: evaluate <code>x-authz-mapping.resource.id</code> (e.g., <code>params.name</code> → tool name)<a href="#section-5.4-3.2.2.3.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-5.4-3.2.2.4">
+                <p id="section-5.4-3.2.2.4.1"><code>resource.properties.aud</code>: set to the MCP server's identity URI sourced from the Server Card (not from the per-tool mapping)<a href="#section-5.4-3.2.2.4.1" class="pilcrow">¶</a></p>
+</li>
+              <li class="normal" id="section-5.4-3.2.2.5">
+                <p id="section-5.4-3.2.2.5.1"><code>resource.properties.arguments</code>: evaluate each expression in <code>x-authz-mapping.arguments</code> against the planned call, whose argument values the agent has derived from the user's prompt (e.g., <code>params.arguments.userId</code> → <code>"alice"</code>)<a href="#section-5.4-3.2.2.5.1" class="pilcrow">¶</a></p>
+</li>
+            </ul>
+</li>
+          <li id="section-5.4-3.3">
+            <p id="section-5.4-3.3.1">Produce one <code>agent_intent</code> entry per planned tool invocation.<a href="#section-5.4-3.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-5.4-3.4">
+            <p id="section-5.4-3.4.1">Collect all entries into an <code>authorization_details</code> array.<a href="#section-5.4-3.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-5.4-4">When the agent plans tool invocations across multiple Agentic Profile servers, the authorization request SHOULD include all server URIs as <code>resource</code> parameter values (<span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span>) so the issued token carries an <code>aud</code> claim covering all intended servers.<a href="#section-5.4-4" class="pilcrow">¶</a></p>
+<p id="section-5.4-5">The agent MUST present the computed <code>authorization_details</code> to the user for review as part of the authorization challenge flow (Step 6 in Section 3), before any tool invocation.<a href="#section-5.4-5" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="review-and-approve">
+<section id="section-6">
+      <h2 id="name-review-and-approve">
+<a href="#section-6" class="section-number selfRef">6. </a><a href="#name-review-and-approve" class="section-name selfRef">Review and Approve</a>
+      </h2>
+<p id="section-6-1">Unlike browser-based OAuth flows where the user is redirected to a consent page, this framework delivers the authorization challenge directly to the agent in a structured machine-readable format. The agent renders this natively — as a prompt, dialog, or UI component within its own interface — without any browser interaction. The user sees exactly what the agent plans to do (which tools, on which resources, with which arguments) before any authentication gesture is requested.<a href="#section-6-1" class="pilcrow">¶</a></p>
+<p id="section-6-2">The user authorization phase is fully delegated to two existing specifications:<a href="#section-6-2" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-6-3.1">
+          <p id="section-6-3.1.1"><strong><span>[<a href="#FIPA" class="cite xref">FIPA</a>]</span></strong> defines the OAuth 2.0 first-party authorization challenge/response flow. The agent MUST use this flow to submit the authorization request carrying the <code>authorization_details</code> and to complete the challenge.<a href="#section-6-3.1.1" class="pilcrow">¶</a></p>
+</li>
+        <li class="normal" id="section-6-3.2">
+          <p id="section-6-3.2.1"><strong><span>[<a href="#ANA" class="cite xref">ANA</a>]</span></strong> defines the structured elicitation format that the AS uses to communicate the challenge to the agent. The AS returns HTTP 400 with <code>error: "insufficient_authorization"</code> and an <code>elicitations</code> array that carries a human-readable <code>message</code> summarizing the agent_intent entries awaiting approval and a <code>requestedSchema</code> for authenticator selection. The agent renders this natively to the user. The agent MUST implement the <code>elicitations</code> response format defined in <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>.<a href="#section-6-3.2.1" class="pilcrow">¶</a></p>
+</li>
+      </ul>
+<p id="section-6-4">The authorization challenge request MUST include the <code>authorization_details</code> parameter carrying the <code>agent_intent</code> entries computed in Section 5.<a href="#section-6-4" class="pilcrow">¶</a></p>
+<p id="section-6-5">This document defines a synchronous approval model: the user is present at the agent and approves the intent within the agent's UX. Deployments where the user is not present MAY compose the same authorization request with the OpenID Client-Initiated Backchannel Authentication flow <span>[<a href="#CIBA" class="cite xref">CIBA</a>]</span> to deliver the approval out-of-band; the <code>authorization_details</code> semantics defined in this document are unchanged. A full asynchronous binding is out of scope for this version.<a href="#section-6-5" class="pilcrow">¶</a></p>
+<div id="authorization-challenge-example">
+<section id="section-6.1">
+        <h3 id="name-authorization-challenge-exa">
+<a href="#section-6.1" class="section-number selfRef">6.1. </a><a href="#name-authorization-challenge-exa" class="section-name selfRef">Authorization Challenge Example</a>
+        </h3>
+<p id="section-6.1-1">The following example shows the AS challenge response for two <code>agent_intent</code> entries. The AS returns HTTP 400 with <code>error: "insufficient_authorization"</code> and an <code>elicitations</code> array as defined in <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>. The <code>message</code> field provides a human-readable summary of the planned tool invocations; the <code>requestedSchema</code> requests the user's authenticator selection.<a href="#section-6.1-1" class="pilcrow">¶</a></p>
+<div class="lang-http sourcecode" id="section-6.1-2">
+<pre>
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Cache-Control: no-store
+
+{
+  "error": "insufficient_authorization",
+  "auth_session": "sess_abc123",
+  "elicitations": [
+    {
+      "mode": "form",
+      "message": "The agent wants to perform the following actions:\n- Disable user alice (identity-server)\n- Delete user alice (identity-server)\n\nApprove with your passkey to proceed.",
+      "requestedSchema": {
+        "type": "object",
+        "properties": {
+          "authenticator": {
+            "type": "string",
+            "title": "Authentication Method",
+            "oneOf": [
+              { "const": "passkey", "title": "Passkey" }
+            ]
+          }
+        },
+        "required": ["authenticator"]
+      }
+    }
+  ]
+}
+</pre><a href="#section-6.1-2" class="pilcrow">¶</a>
+</div>
+<p id="section-6.1-3">The user reviews the two planned invocations (<code>disable_user</code> and <code>delete_user</code> on the identity server) and selects <code>passkey</code>. The passkey WebAuthn <span>[<a href="#WEBAUTHN" class="cite xref">WEBAUTHN</a>]</span> challenge delivery follows <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>; the WebAuthn ceremony is performed in-band by the first-party agent without browser interaction. On successful authentication, the AS issues a RAR token containing the approved <code>authorization_details</code>.<a href="#section-6.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="token-structure">
+<section id="section-7">
+      <h2 id="name-token-structure">
+<a href="#section-7" class="section-number selfRef">7. </a><a href="#name-token-structure" class="section-name selfRef">Token Structure</a>
+      </h2>
+<div id="rar-token-claims">
+<section id="section-7.1">
+        <h3 id="name-rar-token-claims">
+<a href="#section-7.1" class="section-number selfRef">7.1. </a><a href="#name-rar-token-claims" class="section-name selfRef">RAR Token Claims</a>
+        </h3>
+<p id="section-7.1-1">The Authorization Server issues an OAuth 2.0 access token that carries the approved <code>authorization_details</code> as a top-level claim (<span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span>, Section 9). This framework deliberately introduces no new token format: the approved intent travels in a standard OAuth 2.0 access token, and future work may additionally profile Transaction Tokens for downstream propagation (Section 7.3). The token MUST contain:<a href="#section-7.1-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-7.1-2.1">
+            <p id="section-7.1-2.1.1"><code>sub</code>: The subject (user) who approved the intent.<a href="#section-7.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-7.1-2.2">
+            <p id="section-7.1-2.2.1"><code>aud</code>: One or more server URIs identifying the Agentic Profile servers at which this token is valid. When the agent plans invocations across multiple servers, <code>aud</code> MUST be an array covering all server URIs referenced in the <code>authorization_details</code> entries (see Section 5.4 and <span>[<a href="#RFC8707" class="cite xref">RFC8707</a>]</span>).<a href="#section-7.1-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-7.1-2.3">
+            <p id="section-7.1-2.3.1"><code>authorization_details</code>: An array of one or more <code>agent_intent</code> entries as defined in Section 5.2, reflecting only the entries the AS approved.<a href="#section-7.1-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-7.1-3">The token SHOULD also carry the agent's identity in the <code>client_id</code> claim or the <code>act</code> claim (<span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span>). The PEP uses this to populate the PDP <code>context</code> at enforcement time (Section 8.3).<a href="#section-7.1-3" class="pilcrow">¶</a></p>
+<p id="section-7.1-4">The AS MAY reduce the set of requested <code>agent_intent</code> entries (e.g., deny individual entries while approving others). The agent MUST inspect the issued token's <code>authorization_details</code> and MUST NOT proceed to invoke tools whose corresponding <code>agent_intent</code> entry was not approved.<a href="#section-7.1-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="example-token-payload">
+<section id="section-7.2">
+        <h3 id="name-example-token-payload">
+<a href="#section-7.2" class="section-number selfRef">7.2. </a><a href="#name-example-token-payload" class="section-name selfRef">Example Token Payload</a>
+        </h3>
+<div class="lang-json sourcecode" id="section-7.2-1">
+<pre>
+{
+  "sub": "user@example.com",
+  "iss": "https://as.example.com",
+  "aud": ["urn:example:mcp:identity-server"],
+  "client_id": "spiffe://example.org/agent/identity",
+  "exp": 1750000000,
+  "authorization_details": [
+    {
+      "type": "agent_intent",
+      "action": { "name": "tools/call" },
+      "resource": {
+        "type": "mcp-tool",
+        "id": "disable_user",
+        "properties": {
+          "aud": "urn:example:mcp:identity-server",
+          "arguments": { "userId": "alice" }
+        }
+      }
+    }
+  ]
+}
+</pre><a href="#section-7.2-1" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="future-token-attenuation">
+<section id="section-7.3">
+        <h3 id="name-future-token-attenuation">
+<a href="#section-7.3" class="section-number selfRef">7.3. </a><a href="#name-future-token-attenuation" class="section-name selfRef">Future Token Attenuation</a>
+        </h3>
+<p id="section-7.3-1">In orchestration scenarios, an agent may obtain a single RAR token covering all planned server audiences and all <code>agent_intent</code> entries, then attenuate it before calling each individual server. The intended pattern is:<a href="#section-7.3-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-7.3-2">
+<li id="section-7.3-2.1">
+            <p id="section-7.3-2.1.1">The orchestrator obtains a master token with <code>aud</code> covering all servers and <code>authorization_details</code> containing all <code>agent_intent</code> entries.<a href="#section-7.3-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-7.3-2.2">
+            <p id="section-7.3-2.2.1">Before calling server A, the agent exchanges the master token for a narrower token via <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> token exchange (or a Transaction Token <span>[<a href="#TXN-TOKENS" class="cite xref">TXN-TOKENS</a>]</span>), reducing <code>aud</code> to server A's URI and <code>authorization_details</code> to only the entries where <code>resource.properties.aud</code> matches server A.<a href="#section-7.3-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-7.3-2.3">
+            <p id="section-7.3-2.3.1">Server A never receives intent entries intended for other servers.<a href="#section-7.3-2.3.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-7.3-3">The per-entry <code>resource.properties.aud</code> field (Section 5.2) is what makes this attenuation possible — it identifies which <code>agent_intent</code> entries belong to which server.<a href="#section-7.3-3" class="pilcrow">¶</a></p>
+<p id="section-7.3-4">Full specification of the attenuation exchange, including which claims MUST be preserved and which MAY be reduced, is deferred to a future version of this specification. A key open design question is whether the attenuated token carries the filtered <code>agent_intent</code> entries directly, or references the approved intent via a dedicated context claim (e.g., the <code>actx</code> claim proposed for Transaction Tokens); see Appendix B. Implementers MAY prototype this pattern using <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span> token exchange or Transaction Tokens <span>[<a href="#TXN-TOKENS" class="cite xref">TXN-TOKENS</a>]</span>.<a href="#section-7.3-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="runtime-enforcement">
+<section id="section-8">
+      <h2 id="name-runtime-enforcement">
+<a href="#section-8" class="section-number selfRef">8. </a><a href="#name-runtime-enforcement" class="section-name selfRef">Runtime Enforcement</a>
+      </h2>
+<div id="overview-2">
+<section id="section-8.1">
+        <h3 id="name-overview-3">
+<a href="#section-8.1" class="section-number selfRef">8.1. </a><a href="#name-overview-3" class="section-name selfRef">Overview</a>
+        </h3>
+<p id="section-8.1-1">In the Agentic MCP Profile, the Policy Enforcement Point (PEP) is an MCP server or MCP gateway that intercepts each tool invocation and evaluates whether the presented token authorizes that specific action on that specific resource before executing the tool. The same enforcement pattern applies to other Agentic Profiles (A2A, OpenAPI) — the profile determines the interception mechanism, but the SARC extraction and PDP call are identical across profiles.<a href="#section-8.1-1" class="pilcrow">¶</a></p>
+<p id="section-8.1-2">Enforcement is not limited to a single point. In production deployments, additional PEPs MAY be placed at intermediate layers — an AI gateway or API gateway — so that the same SARC extraction and PDP evaluation is applied at multiple stages of the request path. This layered enforcement follows the Zero Trust principle of continuously verifying every invocation rather than relying on a single perimeter check.<a href="#section-8.1-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="pep-procedure">
+<section id="section-8.2">
+        <h3 id="name-pep-procedure">
+<a href="#section-8.2" class="section-number selfRef">8.2. </a><a href="#name-pep-procedure" class="section-name selfRef">PEP Procedure</a>
+        </h3>
+<p id="section-8.2-1">Enforcement comprises two checks: <strong>intent verification</strong> — the invocation is verified against the approved <code>agent_intent</code> entries in the token — and <strong>policy evaluation</strong> — the PDP evaluates the invocation against policy. When the PEP authorizes an invocation on the basis of an <code>agent_intent</code> entry, it MUST:<a href="#section-8.2-1" class="pilcrow">¶</a></p>
+<ol start="1" type="1" class="normal type-1" id="section-8.2-2">
+<li id="section-8.2-2.1">
+            <p id="section-8.2-2.1.1">If the access token is a JWT, validate it according to <span>[<a href="#RFC9068" class="cite xref">RFC9068</a>]</span>. Token presentation follows <span>[<a href="#RFC6750" class="cite xref">RFC6750</a>]</span>.<a href="#section-8.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.2-2.2">
+            <p id="section-8.2-2.2.1">Parse the invocation into its SARC representation (Section 4.2.1) and identify the matching <code>agent_intent</code> entry (Section 8.3). An entry authorizes only invocations that match it.<a href="#section-8.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.2-2.3">
+            <p id="section-8.2-2.3.1">Construct a PDP authorization request from the matched entry and the token (Section 8.4) and obtain a decision — Remote via AuthZEN, or Local via an embedded engine. An invocation that matches the approved intent may still be denied by policy.<a href="#section-8.2-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li id="section-8.2-2.4">
+            <p id="section-8.2-2.4.1">On <code>allow: true</code>, execute the invocation and return the result; otherwise reject the request with an appropriate error.<a href="#section-8.2-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ol>
+<p id="section-8.2-3">When no <code>agent_intent</code> entry matches the invocation — or the token carries no <code>authorization_details</code> at all — the invocation is outside the scope of intent verification. Its disposition is a deployment decision, evaluated at the policy layer: the PDP may deny the request, may indicate that just-in-time authorization is required (Section 8.5), or may authorize it under the deployment's existing authorization model. The PEP enforces the resulting decision. This framework defines how intent is used when present; it does not mandate that every request carry intent.<a href="#section-8.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="sarc-matching">
+<section id="section-8.3">
+        <h3 id="name-sarc-matching">
+<a href="#section-8.3" class="section-number selfRef">8.3. </a><a href="#name-sarc-matching" class="section-name selfRef">SARC Matching</a>
+        </h3>
+<p id="section-8.3-1">The <code>agent_intent</code> entry carries the SARC parameters used to evaluate the authorization decision. The PEP extracts these parameters as follows:<a href="#section-8.3-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.3-2.1">
+            <p id="section-8.3-2.1.1"><strong>Subject</strong>: sourced from the token's <code>sub</code> claim (not from the <code>agent_intent</code> entry).<a href="#section-8.3-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-2.2">
+            <p id="section-8.3-2.2.1"><strong>Action</strong>: read from <code>agent_intent.action</code>.<a href="#section-8.3-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-2.3">
+            <p id="section-8.3-2.3.1"><strong>Resource</strong>: read from <code>agent_intent.resource</code>, with <code>properties.arguments</code> replaced by the actual invocation arguments. Every argument name present in the approved <code>resource.properties.arguments</code> MUST have an equal value in the actual invocation; an invocation whose arguments conflict with the approved values MUST NOT be authorized on the basis of that entry (Section 9.3). Arguments present in the invocation but absent from the approved set are conveyed to the PDP in the authorization request and are subject to policy evaluation.<a href="#section-8.3-2.3.1" class="pilcrow">¶</a></p>
+</li>
+          <li class="normal" id="section-8.3-2.4">
+            <p id="section-8.3-2.4.1"><strong>Context</strong>: sourced from the token's <code>client_id</code> or <code>act</code> claim to identify the agent.<a href="#section-8.3-2.4.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+<p id="section-8.3-3">For matching the invocation to the correct <code>agent_intent</code> entry, the PEP compares the invoked tool name against <code>resource.id</code>, the server's identity URI against <code>resource.properties.aud</code>, and — when multiple entries reference the same tool — the actual arguments against each entry's <code>resource.properties.arguments</code>.<a href="#section-8.3-3" class="pilcrow">¶</a></p>
+<p id="section-8.3-4">Refer to <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span> for the normative definition of the SARC model and its field semantics. Implementations using other PDP backends (e.g., Cedar, OPA) MUST extract the same SARC fields and map them to the PDP's native input format (Section 8.4).<a href="#section-8.3-4" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="pdp-request-construction">
+<section id="section-8.4">
+        <h3 id="name-pdp-request-construction">
+<a href="#section-8.4" class="section-number selfRef">8.4. </a><a href="#name-pdp-request-construction" class="section-name selfRef">PDP Request Construction</a>
+        </h3>
+<div id="authzen-pdp">
+<section id="section-8.4.1">
+          <h4 id="name-authzen-pdp">
+<a href="#section-8.4.1" class="section-number selfRef">8.4.1. </a><a href="#name-authzen-pdp" class="section-name selfRef">AuthZEN PDP</a>
+          </h4>
+<p id="section-8.4.1-1">When the PDP is an AuthZEN endpoint <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span>, the <code>agent_intent</code> entry is already structured as an AuthZEN request template (Section 5.2). The PEP constructs the <code>access</code> request with minimal processing: subject from the token's <code>sub</code> claim, action and resource copied from the matching <code>agent_intent</code> entry (with <code>properties.arguments</code> replaced by actual call arguments), and context from the token's <code>client_id</code> or <code>act</code> claim.<a href="#section-8.4.1-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="section-8.4.1-2">
+<pre>
+{
+  "subject": {
+    "type": "user",
+    "id": "user@example.com"
+  },
+  "action": {
+    "name": "tools/call"
+  },
+  "resource": {
+    "type": "mcp-tool",
+    "id": "disable_user",
+    "properties": {
+      "aud": "urn:example:mcp:identity-server",
+      "arguments": {
+        "userId": "alice"
+      }
+    }
+  },
+  "context": {
+    "agent": "spiffe://example.org/agent/identity"
+  }
+}
+</pre><a href="#section-8.4.1-2" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="local-pdp-cedar-opa">
+<section id="section-8.4.2">
+          <h4 id="name-local-pdp-cedar-opa">
+<a href="#section-8.4.2" class="section-number selfRef">8.4.2. </a><a href="#name-local-pdp-cedar-opa" class="section-name selfRef">Local PDP (Cedar, OPA)</a>
+          </h4>
+<p id="section-8.4.2-1">When authorization is evaluated locally — using an embedded policy engine such as Cedar or OPA — the PEP does not make a network call to an external service. Instead, it extracts the same SARC fields from the matching <code>agent_intent</code> entry and feeds them directly into the local engine:<a href="#section-8.4.2-1" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="section-8.4.2-2.1">
+              <p id="section-8.4.2-2.1.1"><strong>Cedar</strong>: map <code>subject</code> to a Cedar <code>Principal</code>, <code>action.name</code> to a Cedar <code>Action</code>, and <code>resource.type</code> + <code>resource.id</code> to a Cedar <code>Resource</code>. Policy is evaluated in-process or via a co-located Cedar engine.<a href="#section-8.4.2-2.1.1" class="pilcrow">¶</a></p>
+</li>
+            <li class="normal" id="section-8.4.2-2.2">
+              <p id="section-8.4.2-2.2.1"><strong>OPA</strong>: pass the SARC fields as the OPA <code>input</code> document. The policy bundle evaluates the request locally and returns an allow or deny result.<a href="#section-8.4.2-2.2.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="section-8.4.2-3">In both cases the SARC fields extracted from <code>agent_intent</code> are identical to those used in the Remote PDP (AuthZEN) case. The normative field definitions remain those in <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span>; only the evaluation mechanism and serialization format differ.<a href="#section-8.4.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="just-in-time-re-authorization">
+<section id="section-8.5">
+        <h3 id="name-just-in-time-re-authorizati">
+<a href="#section-8.5" class="section-number selfRef">8.5. </a><a href="#name-just-in-time-re-authorizati" class="section-name selfRef">Just-in-Time Re-Authorization</a>
+        </h3>
+<p id="section-8.5-1">If the PEP receives an invocation for which no matching <code>agent_intent</code> entry exists in the token, this may be because: (a) the tool has no <code>x-authz-mapping</code> in the agentic profile and was therefore excluded from the pre-computed authorization intent; (b) the agent is attempting an unplanned invocation; or (c) the approved intent did not include that tool. In all cases, the invocation cannot be authorized on the basis of the token's intent. Where deployment policy requires intent for the tool, just-in-time re-authorization is the path to obtain it.<a href="#section-8.5-1" class="pilcrow">¶</a></p>
+<p id="section-8.5-2">Implementations MAY reuse the <span>[<a href="#ANA" class="cite xref">ANA</a>]</span> elicitation format to request the missing <code>agent_intent</code> entry from the user, following the same Review and Approve pattern described in Section 6: the agent obtains a new structured challenge, the user approves the additional operation, and the AS issues an updated token. However, this document does not yet normatively define how the PEP signals the missing authorization back to the agent mid-session, nor how the resulting token is merged with or supersedes the original session's token. Full specification of this JIT protocol binding is a noted extension point and is out of scope for this version.<a href="#section-8.5-2" class="pilcrow">¶</a></p>
+<p id="section-8.5-3">Implementations that choose just-in-time re-authorization SHOULD return an HTTP 401 response with a <code>WWW-Authenticate</code> header that indicates the missing authorization, to facilitate future standardization of the JIT challenge. This applies regardless of the underlying Agentic Profile, as all profiles defined in this specification operate over HTTP.<a href="#section-8.5-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="security-considerations">
+<section id="section-9">
+      <h2 id="name-security-considerations">
+<a href="#section-9" class="section-number selfRef">9. </a><a href="#name-security-considerations" class="section-name selfRef">Security Considerations</a>
+      </h2>
+<div id="intent-integrity">
+<section id="section-9.1">
+        <h3 id="name-intent-integrity">
+<a href="#section-9.1" class="section-number selfRef">9.1. </a><a href="#name-intent-integrity" class="section-name selfRef">Intent Integrity</a>
+        </h3>
+<p id="section-9.1-1">The <code>authorization_details</code> entries in the issued token represent what the user reviewed and approved. Implementations MUST ensure the authorization request is submitted over a secure channel (TLS) and that the AS binds the approved intent to the token without modification beyond what is explicitly permitted (e.g., denial of individual entries).<a href="#section-9.1-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="cryptographically-approved-intent">
+<section id="section-9.2">
+        <h3 id="name-cryptographically-approved-">
+<a href="#section-9.2" class="section-number selfRef">9.2. </a><a href="#name-cryptographically-approved-" class="section-name selfRef">Cryptographically Approved Intent</a>
+        </h3>
+<p id="section-9.2-1">Because the user authorization phase requires strong, phishing-resistant authentication via <span>[<a href="#ANA" class="cite xref">ANA</a>]</span> (e.g., a passkey gesture), the <code>authorization_details</code> in the issued token constitutes cryptographically approved intent: it is evidence that a specific human approved a specific set of actions on specific resources at a specific time, bound to a specific authentication event. This property is stronger than traditional OAuth scope consent, which may be granted once at login and silently reused across many subsequent operations.<a href="#section-9.2-1" class="pilcrow">¶</a></p>
+<p id="section-9.2-2">Implementations MUST NOT accept tokens whose <code>authorization_details</code> entries were approved via a weaker authentication method than the sensitivity of the authorized actions warrants. The AS SHOULD record the authentication method used during the approval gesture (e.g., as an <code>amr</code> or <code>acr</code> claim) so that enforcement points can verify the approval strength at tool-call time.<a href="#section-9.2-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="resource-binding-at-enforcement">
+<section id="section-9.3">
+        <h3 id="name-resource-binding-at-enforce">
+<a href="#section-9.3" class="section-number selfRef">9.3. </a><a href="#name-resource-binding-at-enforce" class="section-name selfRef">Resource Binding at Enforcement</a>
+        </h3>
+<p id="section-9.3-1">The PEP MUST verify that the actual tool call arguments (e.g., the <code>userId</code> argument) match the approved <code>resource.properties.arguments</code> carried in the <code>agent_intent</code> entry (Section 8.3). A token approved for <code>alice</code> MUST NOT authorize a call with <code>userId=bob</code> on the basis of that entry. This check closes the time-of-check-to-time-of-use gap for resource-level authorization.<a href="#section-9.3-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="intent-entry-reuse">
+<section id="section-9.4">
+        <h3 id="name-intent-entry-reuse">
+<a href="#section-9.4" class="section-number selfRef">9.4. </a><a href="#name-intent-entry-reuse" class="section-name selfRef">Intent Entry Reuse</a>
+        </h3>
+<p id="section-9.4-1">An <code>agent_intent</code> entry is not single-use. Within the token's validity window, invocations matching the same entry may be repeated. Deployments for which repetition of an approved operation is a concern can mitigate it with short token lifetimes, stateful enforcement at the PEP, or policy-level controls at the PDP.<a href="#section-9.4-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="agent-identity">
+<section id="section-9.5">
+        <h3 id="name-agent-identity">
+<a href="#section-9.5" class="section-number selfRef">9.5. </a><a href="#name-agent-identity" class="section-name selfRef">Agent Identity</a>
+        </h3>
+<p id="section-9.5-1">This specification does not define how the agent authenticates to the AS or the PEP. Implementations SHOULD use strong agent identity (e.g., mTLS with SPIFFE/SVID <span>[<a href="#SPIFFE" class="cite xref">SPIFFE</a>]</span>, DPoP) to bind tokens to the agent and prevent token theft or misuse by other agents.<a href="#section-9.5-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="scope-of-user-consent">
+<section id="section-9.6">
+        <h3 id="name-scope-of-user-consent">
+<a href="#section-9.6" class="section-number selfRef">9.6. </a><a href="#name-scope-of-user-consent" class="section-name selfRef">Scope of User Consent</a>
+        </h3>
+<p id="section-9.6-1">The user approves a specific set of <code>agent_intent</code> entries. An <code>agent_intent</code> entry MUST NOT be used to authorize an invocation that does not match it. The agent MUST NOT intentionally invoke tools beyond the approved entries without obtaining a new user approval. Whether an invocation not covered by any entry may be authorized by other means is a deployment decision (Section 8.2); deployments should be aware that permitting broad fallback authorization for tools that declare <code>x-authz-mapping</code> weakens the guarantee that agent behavior remains within the user-approved plan.<a href="#section-9.6-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="first-party-agent-assumption">
+<section id="section-9.7">
+        <h3 id="name-first-party-agent-assumptio">
+<a href="#section-9.7" class="section-number selfRef">9.7. </a><a href="#name-first-party-agent-assumptio" class="section-name selfRef">First-Party Agent Assumption</a>
+        </h3>
+<p id="section-9.7-1">This specification is designed for first-party agents — agents operating in the same trust domain as the user and the Authorization Server. Application of this framework to third-party or autonomous agents raises additional trust and consent questions that are out of scope for this version.<a href="#section-9.7-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+<div id="iana-considerations">
+<section id="section-10">
+      <h2 id="name-iana-considerations">
+<a href="#section-10" class="section-number selfRef">10. </a><a href="#name-iana-considerations" class="section-name selfRef">IANA Considerations</a>
+      </h2>
+<p id="section-10-1">A future version of this document will request registration of the <code>agent_intent</code> authorization details type in the "OAuth Authorization Details Types" registry established by <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span>. The type name used in this document is a working name; the final name will be determined before registration (see Appendix B). No IANA action is requested at this stage.<a href="#section-10-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="sec-combined-references">
+<section id="section-11">
+      <h2 id="name-references">
+<a href="#section-11" class="section-number selfRef">11. </a><a href="#name-references" class="section-name selfRef">References</a>
+      </h2>
+<div id="sec-normative-references">
+<section id="section-11.1">
+        <h3 id="name-normative-references">
+<a href="#section-11.1" class="section-number selfRef">11.1. </a><a href="#name-normative-references" class="section-name selfRef">Normative References</a>
+        </h3>
+<dl class="references">
+<dt id="ANA">[ANA]</dt>
+        <dd>
+<span class="refAuthor">Besozzi, M.</span>, <span class="refTitle">"OAuth 2.0 Agent Native Authorization"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/draft-embesozzi-oauth-agent-native-authorization/">https://datatracker.ietf.org/doc/draft-embesozzi-oauth-agent-native-authorization/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="AUTHZEN">[AUTHZEN]</dt>
+        <dd>
+<span class="refAuthor">OpenID Foundation</span>, <span class="refTitle">"Authorization API 1.0"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://openid.net/specs/authorization-api-1_0.html">https://openid.net/specs/authorization-api-1_0.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="FIPA">[FIPA]</dt>
+        <dd>
+<span class="refAuthor">IETF OAuth Working Group</span>, <span class="refTitle">"OAuth 2.0 for First-Party Applications"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-first-party-apps/">https://datatracker.ietf.org/doc/draft-ietf-oauth-first-party-apps/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC2119">[RFC2119]</dt>
+        <dd>
+<span class="refAuthor">Bradner, S.</span>, <span class="refTitle">"Key words for use in RFCs to Indicate Requirement Levels"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 2119</span>, <span class="seriesInfo">DOI 10.17487/RFC2119</span>, <time datetime="1997-03" class="refDate">March 1997</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc2119">https://www.rfc-editor.org/rfc/rfc2119</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC6750">[RFC6750]</dt>
+        <dd>
+<span class="refAuthor">Jones, M.</span> and <span class="refAuthor">D. Hardt</span>, <span class="refTitle">"The OAuth 2.0 Authorization Framework: Bearer Token Usage"</span>, <span class="seriesInfo">RFC 6750</span>, <span class="seriesInfo">DOI 10.17487/RFC6750</span>, <time datetime="2012-10" class="refDate">October 2012</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc6750">https://www.rfc-editor.org/rfc/rfc6750</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC7519">[RFC7519]</dt>
+        <dd>
+<span class="refAuthor">Jones, M.</span>, <span class="refAuthor">Bradley, J.</span>, and <span class="refAuthor">N. Sakimura</span>, <span class="refTitle">"JSON Web Token (JWT)"</span>, <span class="seriesInfo">RFC 7519</span>, <span class="seriesInfo">DOI 10.17487/RFC7519</span>, <time datetime="2015-05" class="refDate">May 2015</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc7519">https://www.rfc-editor.org/rfc/rfc7519</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8174">[RFC8174]</dt>
+        <dd>
+<span class="refAuthor">Leiba, B.</span>, <span class="refTitle">"Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words"</span>, <span class="seriesInfo">BCP 14</span>, <span class="seriesInfo">RFC 8174</span>, <span class="seriesInfo">DOI 10.17487/RFC8174</span>, <time datetime="2017-05" class="refDate">May 2017</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8174">https://www.rfc-editor.org/rfc/rfc8174</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC9068">[RFC9068]</dt>
+        <dd>
+<span class="refAuthor">Bertocci, V.</span>, <span class="refTitle">"JSON Web Token (JWT) Profile for OAuth 2.0 Access Tokens"</span>, <span class="seriesInfo">RFC 9068</span>, <span class="seriesInfo">DOI 10.17487/RFC9068</span>, <time datetime="2021-10" class="refDate">October 2021</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc9068">https://www.rfc-editor.org/rfc/rfc9068</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC9396">[RFC9396]</dt>
+      <dd>
+<span class="refAuthor">Lodderstedt, T.</span>, <span class="refAuthor">Richer, J.</span>, and <span class="refAuthor">B. Campbell</span>, <span class="refTitle">"OAuth 2.0 Rich Authorization Requests"</span>, <span class="seriesInfo">RFC 9396</span>, <span class="seriesInfo">DOI 10.17487/RFC9396</span>, <time datetime="2023-05" class="refDate">May 2023</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc9396">https://www.rfc-editor.org/rfc/rfc9396</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="sec-informative-references">
+<section id="section-11.2">
+        <h3 id="name-informative-references">
+<a href="#section-11.2" class="section-number selfRef">11.2. </a><a href="#name-informative-references" class="section-name selfRef">Informative References</a>
+        </h3>
+<dl class="references">
+<dt id="A2A">[A2A]</dt>
+        <dd>
+<span class="refAuthor">Google</span>, <span class="refTitle">"Agent2Agent Protocol"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://google.github.io/A2A/">https://google.github.io/A2A/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="CEL">[CEL]</dt>
+        <dd>
+<span class="refAuthor">Google</span>, <span class="refTitle">"Common Expression Language"</span>, <time datetime="2023" class="refDate">2023</time>, <span>&lt;<a href="https://github.com/google/cel-spec">https://github.com/google/cel-spec</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="CIBA">[CIBA]</dt>
+        <dd>
+<span class="refAuthor">OpenID Foundation</span>, <span class="refTitle">"OpenID Connect Client-Initiated Backchannel Authentication Flow - Core 1.0"</span>, <time datetime="2021" class="refDate">2021</time>, <span>&lt;<a href="https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html">https://openid.net/specs/openid-client-initiated-backchannel-authentication-core-1_0.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="COAZ">[COAZ]</dt>
+        <dd>
+<span class="refAuthor">OpenID AuthZEN Working Group</span>, <span class="refTitle">"AuthZEN Profile for Model Context Protocol Tool Authorization"</span>, <time datetime="2026" class="refDate">2026</time>, <span>&lt;<a href="https://github.com/openid/authzen/blob/main/profiles/authzen-mcp-profile-1_0.md">https://github.com/openid/authzen/blob/main/profiles/authzen-mcp-profile-1_0.md</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="MCP">[MCP]</dt>
+        <dd>
+<span class="refAuthor">Anthropic</span>, <span class="refTitle">"Model Context Protocol Specification"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://spec.modelcontextprotocol.io/">https://spec.modelcontextprotocol.io/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="OPENAPI">[OPENAPI]</dt>
+        <dd>
+<span class="refAuthor">OpenAPI Initiative</span>, <span class="refTitle">"OpenAPI Specification"</span>, <time datetime="2024" class="refDate">2024</time>, <span>&lt;<a href="https://spec.openapis.org/oas/latest.html">https://spec.openapis.org/oas/latest.html</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC6749">[RFC6749]</dt>
+        <dd>
+<span class="refAuthor">Hardt, D., Ed.</span>, <span class="refTitle">"The OAuth 2.0 Authorization Framework"</span>, <span class="seriesInfo">RFC 6749</span>, <span class="seriesInfo">DOI 10.17487/RFC6749</span>, <time datetime="2012-10" class="refDate">October 2012</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc6749">https://www.rfc-editor.org/rfc/rfc6749</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8693">[RFC8693]</dt>
+        <dd>
+<span class="refAuthor">Jones, M.</span>, <span class="refAuthor">Nadalin, A.</span>, <span class="refAuthor">Campbell, B., Ed.</span>, <span class="refAuthor">Bradley, J.</span>, and <span class="refAuthor">C. Mortimore</span>, <span class="refTitle">"OAuth 2.0 Token Exchange"</span>, <span class="seriesInfo">RFC 8693</span>, <span class="seriesInfo">DOI 10.17487/RFC8693</span>, <time datetime="2020-01" class="refDate">January 2020</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8693">https://www.rfc-editor.org/rfc/rfc8693</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="RFC8707">[RFC8707]</dt>
+        <dd>
+<span class="refAuthor">Campbell, B.</span>, <span class="refAuthor">Bradley, J.</span>, and <span class="refAuthor">H. Tschofenig</span>, <span class="refTitle">"Resource Indicators for OAuth 2.0"</span>, <span class="seriesInfo">RFC 8707</span>, <span class="seriesInfo">DOI 10.17487/RFC8707</span>, <time datetime="2020-02" class="refDate">February 2020</time>, <span>&lt;<a href="https://www.rfc-editor.org/rfc/rfc8707">https://www.rfc-editor.org/rfc/rfc8707</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="SPIFFE">[SPIFFE]</dt>
+        <dd>
+<span class="refAuthor">SPIFFE Project</span>, <span class="refTitle">"SPIFFE: Secure Production Identity Framework For Everyone"</span>, <time datetime="2024" class="refDate">2024</time>, <span>&lt;<a href="https://spiffe.io/docs/latest/spiffe-about/overview/">https://spiffe.io/docs/latest/spiffe-about/overview/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="TXN-TOKENS">[TXN-TOKENS]</dt>
+        <dd>
+<span class="refAuthor">IETF OAuth Working Group</span>, <span class="refTitle">"Transaction Tokens"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/">https://datatracker.ietf.org/doc/draft-ietf-oauth-transaction-tokens/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+<dt id="WEBAUTHN">[WEBAUTHN]</dt>
+      <dd>
+<span class="refAuthor">W3C</span>, <span class="refTitle">"Web Authentication: An API for accessing Public Key Credentials Level 3"</span>, <time datetime="2025" class="refDate">2025</time>, <span>&lt;<a href="https://www.w3.org/TR/webauthn-3/">https://www.w3.org/TR/webauthn-3/</a>&gt;</span>. </dd>
+<dd class="break"></dd>
+</dl>
+</section>
+</div>
+</section>
+</div>
+<div id="use-cases">
+<section id="appendix-A">
+      <h2 id="name-use-cases">
+<a href="#appendix-A" class="section-number selfRef">Appendix A. </a><a href="#name-use-cases" class="section-name selfRef">Use Cases</a>
+      </h2>
+<div id="identity-management-multi-tool-authorization">
+<section id="appendix-A.1">
+        <h3 id="name-identity-management-multi-t">
+<a href="#appendix-A.1" class="section-number selfRef">A.1. </a><a href="#name-identity-management-multi-t" class="section-name selfRef">Identity Management — Multi-Tool Authorization</a>
+        </h3>
+<p id="appendix-A.1-1">This section illustrates the complete IANA-AP flow for a scenario involving one MCP server and three tools, demonstrating how the Intent Agent computes multiple intents from a single user prompt.<a href="#appendix-A.1-1" class="pilcrow">¶</a></p>
+<div id="scenario">
+<section id="appendix-A.1.1">
+          <h4 id="name-scenario">
+<a href="#appendix-A.1.1" class="section-number selfRef">A.1.1. </a><a href="#name-scenario" class="section-name selfRef">Scenario</a>
+          </h4>
+<p id="appendix-A.1.1-1">A user instructs an agent:<a href="#appendix-A.1.1-1" class="pilcrow">¶</a></p>
+<ul class="normal ulEmpty">
+<li class="normal ulEmpty" id="appendix-A.1.1-2.1">
+              <p id="appendix-A.1.1-2.1.1">"Disable alice's account, delete her data, and list all disabled users."<a href="#appendix-A.1.1-2.1.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+<p id="appendix-A.1.1-3">The agent has access to one MCP server:<a href="#appendix-A.1.1-3" class="pilcrow">¶</a></p>
+<ul class="normal">
+<li class="normal" id="appendix-A.1.1-4.1">
+              <p id="appendix-A.1.1-4.1.1"><strong>Identity Server</strong> (<code>urn:example:mcp:identity-server</code>) — tools: <code>disable_user</code>, <code>delete_user</code>, <code>list_users</code><a href="#appendix-A.1.1-4.1.1" class="pilcrow">¶</a></p>
+</li>
+          </ul>
+</section>
+</div>
+<div id="phase-1-discover-required-authorization">
+<section id="appendix-A.1.2">
+          <h4 id="name-phase-1-discover-required-a">
+<a href="#appendix-A.1.2" class="section-number selfRef">A.1.2. </a><a href="#name-phase-1-discover-required-a" class="section-name selfRef">Phase 1: Discover Required Authorization</a>
+          </h4>
+<p id="appendix-A.1.2-1">The agent delegates discovery to the Intent Agent, which reads the Agentic MCP Profile from the identity server and collects tools with <code>x-authz-mapping</code> in their <code>_meta</code>. The discovery corpus contains:<a href="#appendix-A.1.2-1" class="pilcrow">¶</a></p>
+<table class="center" id="table-2">
+            <caption><a href="#table-2" class="selfRef">Table 2</a></caption>
+<thead>
+              <tr>
+                <th class="text-left" rowspan="1" colspan="1">Tool</th>
+                <th class="text-left" rowspan="1" colspan="1">action.name</th>
+                <th class="text-left" rowspan="1" colspan="1">resource.type</th>
+                <th class="text-left" rowspan="1" colspan="1">resource.id</th>
+                <th class="text-left" rowspan="1" colspan="1">arguments</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>disable_user</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.method</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>'mcp-tool'</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.name</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>userId: params.arguments.userId</code>
+</td>
+              </tr>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>delete_user</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.method</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>'mcp-tool'</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.name</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>userId: params.arguments.userId</code>
+</td>
+              </tr>
+              <tr>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>list_users</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.method</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>'mcp-tool'</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>params.name</code>
+</td>
+                <td class="text-left" rowspan="1" colspan="1">
+                  <code>filter: params.arguments.filter</code>
+</td>
+              </tr>
+            </tbody>
+          </table>
+<p id="appendix-A.1.2-3"><code>aud</code> is not in the per-tool mapping; the agent reads it from the Server Card (<code>urn:example:mcp:identity-server</code>).<a href="#appendix-A.1.2-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="phase-2-compute-authorization-intent-intent-agent">
+<section id="appendix-A.1.3">
+          <h4 id="name-phase-2-compute-authorizati">
+<a href="#appendix-A.1.3" class="section-number selfRef">A.1.3. </a><a href="#name-phase-2-compute-authorizati" class="section-name selfRef">Phase 2: Compute Authorization Intent (Intent Agent)</a>
+          </h4>
+<p id="appendix-A.1.3-1">The Intent Agent, holding the discovery corpus from Phase 1, receives the user's prompt. It plans the tool calls from the prompt, resolves the CEL expressions against each planned call, and produces three <code>agent_intent</code> entries:<a href="#appendix-A.1.3-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A.1.3-2">
+<pre>
+[
+  {
+    "type": "agent_intent",
+    "action": { "name": "tools/call" },
+    "resource": {
+      "type": "mcp-tool",
+      "id": "disable_user",
+      "properties": {
+        "aud": "urn:example:mcp:identity-server",
+        "arguments": { "userId": "alice" }
+      }
+    }
+  },
+  {
+    "type": "agent_intent",
+    "action": { "name": "tools/call" },
+    "resource": {
+      "type": "mcp-tool",
+      "id": "delete_user",
+      "properties": {
+        "aud": "urn:example:mcp:identity-server",
+        "arguments": { "userId": "alice" }
+      }
+    }
+  },
+  {
+    "type": "agent_intent",
+    "action": { "name": "tools/call" },
+    "resource": {
+      "type": "mcp-tool",
+      "id": "list_users",
+      "properties": {
+        "aud": "urn:example:mcp:identity-server",
+        "arguments": { "filter": "disabled" }
+      }
+    }
+  }
+]
+</pre><a href="#appendix-A.1.3-2" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A.1.3-3">Note that <code>list_users</code> uses <code>filter: "disabled"</code> — the Intent Agent derived this value from the phrase "list all disabled users" in the prompt; the CEL expression <code>params.arguments.filter</code> maps the planned value into the entry.<a href="#appendix-A.1.3-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="phase-3-review-and-approve">
+<section id="appendix-A.1.4">
+          <h4 id="name-phase-3-review-and-approve">
+<a href="#appendix-A.1.4" class="section-number selfRef">A.1.4. </a><a href="#name-phase-3-review-and-approve" class="section-name selfRef">Phase 3: Review and Approve</a>
+          </h4>
+<p id="appendix-A.1.4-1">The agent submits an authorization request to the AS carrying the three <code>agent_intent</code> entries:<a href="#appendix-A.1.4-1" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A.1.4-2">
+<pre>
+{
+  "client_id": "spiffe://example.org/agent/identity",
+  "authorization_details": [
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "disable_user",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "userId": "alice" } } } },
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "delete_user",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "userId": "alice" } } } },
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "list_users",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "filter": "disabled" } } } }
+  ]
+}
+</pre><a href="#appendix-A.1.4-2" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A.1.4-3">The AS returns HTTP 400 with <code>error: "insufficient_authorization"</code> and an <code>elicitations</code> array (<span>[<a href="#ANA" class="cite xref">ANA</a>]</span>). The <code>message</code> field summarizes the three planned tool invocations in human-readable form. The agent renders this natively — no browser redirect:<a href="#appendix-A.1.4-3" class="pilcrow">¶</a></p>
+<div class="lang-http sourcecode" id="appendix-A.1.4-4">
+<pre>
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+Cache-Control: no-store
+
+{
+  "error": "insufficient_authorization",
+  "auth_session": "sess_abc123",
+  "elicitations": [
+    {
+      "mode": "form",
+      "message": "The agent wants to perform the following actions:\n- Disable user alice (identity-server)\n- Delete user alice (identity-server)\n- List disabled users (identity-server)\n\nApprove with your passkey to proceed.",
+      "requestedSchema": {
+        "type": "object",
+        "properties": {
+          "authenticator": {
+            "type": "string",
+            "title": "Authentication Method",
+            "oneOf": [
+              { "const": "passkey", "title": "Passkey" }
+            ]
+          }
+        },
+        "required": ["authenticator"]
+      }
+    }
+  ]
+}
+</pre><a href="#appendix-A.1.4-4" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A.1.4-5">The user reviews the three planned invocations and selects <code>passkey</code>. The passkey WebAuthn challenge delivery follows <span>[<a href="#ANA" class="cite xref">ANA</a>]</span>; the WebAuthn ceremony is performed in-band by the first-party agent without browser interaction. On successful authentication, the AS issues a RAR token:<a href="#appendix-A.1.4-5" class="pilcrow">¶</a></p>
+<div class="lang-json sourcecode" id="appendix-A.1.4-6">
+<pre>
+{
+  "sub": "user@example.com",
+  "aud": ["urn:example:mcp:identity-server"],
+  "client_id": "spiffe://example.org/agent/identity",
+  "authorization_details": [
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "disable_user",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "userId": "alice" } } } },
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "delete_user",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "userId": "alice" } } } },
+    { "type": "agent_intent", "action": { "name": "tools/call" },
+      "resource": { "type": "mcp-tool", "id": "list_users",
+        "properties": { "aud": "urn:example:mcp:identity-server",
+          "arguments": { "filter": "disabled" } } } }
+  ]
+}
+</pre><a href="#appendix-A.1.4-6" class="pilcrow">¶</a>
+</div>
+</section>
+</div>
+<div id="phase-4-runtime-enforcement">
+<section id="appendix-A.1.5">
+          <h4 id="name-phase-4-runtime-enforcement">
+<a href="#appendix-A.1.5" class="section-number selfRef">A.1.5. </a><a href="#name-phase-4-runtime-enforcement" class="section-name selfRef">Phase 4: Runtime Enforcement</a>
+          </h4>
+<p id="appendix-A.1.5-1">The agent calls each tool in sequence. The PEP matches each invocation against the token's <code>authorization_details</code> and calls the PDP before executing.<a href="#appendix-A.1.5-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="flow-diagram">
+<section id="appendix-A.1.6">
+          <h4 id="name-flow-diagram">
+<a href="#appendix-A.1.6" class="section-number selfRef">A.1.6. </a><a href="#name-flow-diagram" class="section-name selfRef">Flow Diagram</a>
+          </h4>
+<div class="alignLeft art-text artwork" id="appendix-A.1.6-1">
+<pre>
+User      Intent Agent      Agent           AS       Identity / PEP    PDP
+ |              |              |              |               |           |
+ | Prompt: "disable alice, delete, list disabled users"      |           |
+ |----------------------------&gt;|              |               |           |
+ |              |              |              |               |           |
+ |              | [Phase 1: Discover Required Authorization]  |           |
+ |              |&lt;-delegate discovery-|        |               |           |
+ |              |--Agentic Profile req------------------------&gt;|           |
+ |              |&lt;-Agentic Profile + x-authz-mapping-----------|           |
+ |              |              |              |               |           |
+ |              | [Phase 2: Compute Authorization Intent]     |           |
+ |              |&lt;-prompt------|              |               |           |
+ |              |--3 agent_intent entries----&gt;|               |           |
+ |              |              |              |               |           |
+ |              | [Phase 3: Review and Approve]               |           |
+ |              |              |-Auth Req + 3 intents--------&gt;|           |
+ |              |              |&lt;-elicitations challenge------|           |
+ |&lt;-present 3 intents----------|              |               |           |
+ |--approve (passkey)----------&gt;              |               |           |
+ |              |              |-complete challenge----------&gt;|           |
+ |              |              |&lt;-RAR token (3 agent_intent entries)------|
+ |              |              |              |               |           |
+ |              | [Phase 4: Runtime Enforcement]|             |           |
+ |              |              |-disable_user + token--------&gt;|           |
+ |              |              |              |               |--PDP req-&gt;|
+ |              |              |              |               |&lt;--allow---|
+ |              |              |-delete_user + token---------&gt;|           |
+ |              |              |              |               |--PDP req-&gt;|
+ |              |              |              |               |&lt;--allow---|
+ |              |              |-list_users + token----------&gt;|           |
+ |              |              |              |               |--PDP req-&gt;|
+ |              |              |              |               |&lt;--allow---|
+ |              |              |&lt;-results-----|               |           |
+</pre><a href="#appendix-A.1.6-1" class="pilcrow">¶</a>
+</div>
+<p id="appendix-A.1.6-2">The Intent Agent operates during Phases 1 and 2: it performs discovery on the agent's behalf, computes the three <code>agent_intent</code> entries, and plays no further role from Phase 3 onward. The RAR token is presented to the single PEP for each tool call; the PEP evaluates each invocation independently against the token's <code>authorization_details</code>.<a href="#appendix-A.1.6-2" class="pilcrow">¶</a></p>
+</section>
+</div>
+</section>
+</div>
+</section>
+</div>
+<div id="open-items-and-future-specifications">
+<section id="appendix-B">
+      <h2 id="name-open-items-and-future-speci">
+<a href="#appendix-B" class="section-number selfRef">Appendix B. </a><a href="#name-open-items-and-future-speci" class="section-name selfRef">Open Items and Future Specifications</a>
+      </h2>
+<p id="appendix-B-1">This document defines a framework; individual components may mature into separate specifications as the work evolves through community feedback. The following open items are known at the time of writing. Each entry states the framework phase it belongs to, the related standards, and the point that remains to be specified.<a href="#appendix-B-1" class="pilcrow">¶</a></p>
+<div id="a2a-and-openapi-agentic-profile-bindings">
+<section id="appendix-B.1">
+        <h3 id="name-a2a-and-openapi-agentic-pro">
+<a href="#appendix-B.1" class="section-number selfRef">B.1. </a><a href="#name-a2a-and-openapi-agentic-pro" class="section-name selfRef">A2A and OpenAPI Agentic Profile Bindings</a>
+        </h3>
+<span class="break"></span><dl class="dlParallel" id="appendix-B.1-1">
+          <dt id="appendix-B.1-1.1">Phase:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.1-1.2">
+            <p id="appendix-B.1-1.2.1">1 — Discover Required Authorization<a href="#appendix-B.1-1.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.1-1.3">Related standards:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.1-1.4">
+            <p id="appendix-B.1-1.4.1">A2A Agent Card <span>[<a href="#A2A" class="cite xref">A2A</a>]</span>, OpenAPI Specification <span>[<a href="#OPENAPI" class="cite xref">OPENAPI</a>]</span><a href="#appendix-B.1-1.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.1-1.5">Open point:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.1-1.6">
+            <p id="appendix-B.1-1.6.1">The profile-specific binding of <code>x-authz-mapping</code> — the CEL evaluation context and the <code>resource.type</code> literal — for each Agentic Profile type. The MCP binding is defined in this document (Section 4.2); the A2A and OpenAPI bindings are reserved (Sections 4.4 and 4.5).<a href="#appendix-B.1-1.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="agentintent-rar-type-registration">
+<section id="appendix-B.2">
+        <h3 id="name-agent_intent-rar-type-regis">
+<a href="#appendix-B.2" class="section-number selfRef">B.2. </a><a href="#name-agent_intent-rar-type-regis" class="section-name selfRef">agent_intent RAR Type Registration</a>
+        </h3>
+<span class="break"></span><dl class="dlParallel" id="appendix-B.2-1">
+          <dt id="appendix-B.2-1.1">Phase:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.2-1.2">
+            <p id="appendix-B.2-1.2.1">2 — Compute Authorization Intent<a href="#appendix-B.2-1.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.2-1.3">Related standards:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.2-1.4">
+            <p id="appendix-B.2-1.4.1">OAuth 2.0 Rich Authorization Requests <span>[<a href="#RFC9396" class="cite xref">RFC9396</a>]</span>, IANA "OAuth Authorization Details Types" registry<a href="#appendix-B.2-1.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.2-1.5">Open point:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.2-1.6">
+            <p id="appendix-B.2-1.6.1">Registration of the final type name (<code>agent_intent</code> is a working name) and a formal JSON schema for the entry structure (Section 5.2).<a href="#appendix-B.2-1.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="local-pdp-normative-mappings">
+<section id="appendix-B.3">
+        <h3 id="name-local-pdp-normative-mapping">
+<a href="#appendix-B.3" class="section-number selfRef">B.3. </a><a href="#name-local-pdp-normative-mapping" class="section-name selfRef">Local PDP Normative Mappings</a>
+        </h3>
+<span class="break"></span><dl class="dlParallel" id="appendix-B.3-1">
+          <dt id="appendix-B.3-1.1">Phase:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.3-1.2">
+            <p id="appendix-B.3-1.2.1">4 — Runtime Enforcement<a href="#appendix-B.3-1.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.3-1.3">Related standards:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.3-1.4">
+            <p id="appendix-B.3-1.4.1">OpenID AuthZEN <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span> (normative in this document); Cedar, OPA (informative)<a href="#appendix-B.3-1.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.3-1.5">Open point:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.3-1.6">
+            <p id="appendix-B.3-1.6.1">A normative mapping of the SARC fields extracted from the <code>agent_intent</code> entry to each local engine's native input format. This document describes the mapping informatively (Section 8.4); a conformance-grade binding per engine remains to be specified.<a href="#appendix-B.3-1.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="intent-aware-policy-evaluation">
+<section id="appendix-B.4">
+        <h3 id="name-intent-aware-policy-evaluat">
+<a href="#appendix-B.4" class="section-number selfRef">B.4. </a><a href="#name-intent-aware-policy-evaluat" class="section-name selfRef">Intent-Aware Policy Evaluation</a>
+        </h3>
+<span class="break"></span><dl class="dlParallel" id="appendix-B.4-1">
+          <dt id="appendix-B.4-1.1">Phase:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.4-1.2">
+            <p id="appendix-B.4-1.2.1">4 — Runtime Enforcement<a href="#appendix-B.4-1.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.4-1.3">Related standards:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.4-1.4">
+            <p id="appendix-B.4-1.4.1">OpenID AuthZEN <span>[<a href="#AUTHZEN" class="cite xref">AUTHZEN</a>]</span><a href="#appendix-B.4-1.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.4-1.5">Open point:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.4-1.6">
+            <p id="appendix-B.4-1.6.1">How the approved intent participates in the policy decision. In the procedure described in Section 8.2, the PEP verifies the invocation against the token's <code>agent_intent</code> entries and the PDP evaluates policy without seeing the intent. An alternative is to convey the approved <code>agent_intent</code> entries to the PDP within the authorization request (e.g., in the AuthZEN <code>context</code>), so that intent verification and policy evaluation are performed together at the policy layer. Whether a normative profile for such intent-aware policy evaluation is needed remains to be specified.<a href="#appendix-B.4-1.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+<div id="token-attenuation-and-downscoping">
+<section id="appendix-B.5">
+        <h3 id="name-token-attenuation-and-downs">
+<a href="#appendix-B.5" class="section-number selfRef">B.5. </a><a href="#name-token-attenuation-and-downs" class="section-name selfRef">Token Attenuation and Downscoping</a>
+        </h3>
+<span class="break"></span><dl class="dlParallel" id="appendix-B.5-1">
+          <dt id="appendix-B.5-1.1">Phase:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.5-1.2">
+            <p id="appendix-B.5-1.2.1">Cross-phase — after Review and Approve (Phase 3), before Runtime Enforcement (Phase 4)<a href="#appendix-B.5-1.2.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.5-1.3">Related standards:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.5-1.4">
+            <p id="appendix-B.5-1.4.1">OAuth 2.0 Token Exchange <span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span>, Transaction Tokens <span>[<a href="#TXN-TOKENS" class="cite xref">TXN-TOKENS</a>]</span><a href="#appendix-B.5-1.4.1" class="pilcrow">¶</a></p>
+</dd>
+          <dd class="break"></dd>
+<dt id="appendix-B.5-1.5">Open point:</dt>
+          <dd style="margin-left: 1.5em" id="appendix-B.5-1.6">
+            <p id="appendix-B.5-1.6.1">Whether the attenuated token carries the filtered <code>agent_intent</code> entries directly, or references the approved intent via a dedicated context claim (e.g., the <code>actx</code> claim proposed for Transaction Tokens). A related question is whether delegated authorization intent across orchestrated agent chains — e.g., a delegation chain expressed through nested <code>act</code> claims (<span>[<a href="#RFC8693" class="cite xref">RFC8693</a>]</span>) — is in scope for this framework or deferred to companion work. Section 7.3 describes the intended pattern.<a href="#appendix-B.5-1.6.1" class="pilcrow">¶</a></p>
+</dd>
+        <dd class="break"></dd>
+</dl>
+</section>
+</div>
+</section>
+</div>
+<div id="acknowledgments">
+<section id="appendix-C">
+      <h2 id="name-acknowledgments">
+<a href="#appendix-C" class="section-number selfRef">Appendix C. </a><a href="#name-acknowledgments" class="section-name selfRef">Acknowledgments</a>
+      </h2>
+<p id="appendix-C-1">The author thanks the contributors to the OpenID AuthZEN Working Group, the authors of draft-ietf-oauth-first-party-apps, and the broader IETF OAuth Working Group.<a href="#appendix-C-1" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="document-history">
+<section id="appendix-D">
+      <h2 id="name-document-history">
+<a href="#appendix-D" class="section-number selfRef">Appendix D. </a><a href="#name-document-history" class="section-name selfRef">Document History</a>
+      </h2>
+<div id="draft-embesozzi-intent-agent-native-authorization-00">
+<section id="appendix-D.1">
+        <h3 id="name-draft-embesozzi-intent-agen">
+<a href="#appendix-D.1" class="section-number selfRef">D.1. </a><a href="#name-draft-embesozzi-intent-agen" class="section-name selfRef">draft-embesozzi-intent-agent-native-authorization-00</a>
+        </h3>
+<ul class="normal">
+<li class="normal" id="appendix-D.1-1.1">
+            <p id="appendix-D.1-1.1.1">Initial version.<a href="#appendix-D.1-1.1.1" class="pilcrow">¶</a></p>
+</li>
+        </ul>
+</section>
+</div>
+</section>
+</div>
+<div id="authors-addresses">
+<section id="appendix-E">
+      <h2 id="name-authors-address">
+<a href="#name-authors-address" class="section-name selfRef">Author's Address</a>
+      </h2>
+<address class="vcard">
+        <div dir="auto" class="left"><span class="fn nameRole">Martin Besozzi</span></div>
+<div dir="auto" class="left"><span class="org">Independent</span></div>
+<div class="email">
+<span>Email:</span>
+<a href="mailto:embesozzi@gmail.com" class="email">embesozzi@gmail.com</a>
+</div>
+</address>
+</section>
+</div>
+<script>const toc = document.getElementById("toc");
+toc.querySelector("h2").addEventListener("click", e => {
+  toc.classList.toggle("active");
+});
+toc.querySelector("nav").addEventListener("click", e => {
+  toc.classList.remove("active");
+});
+</script>
+</body>
+</html>
