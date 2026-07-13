@@ -210,49 +210,46 @@ specification, the Agentic Profile is an MCP Server; future versions extend this
 framework to A2A Agent Cards and OpenAPI descriptions (Sections 4.4 and 4.5).
 
 ~~~
-User          Agent          AS      Agentic Profile / PEP    PDP
- |              |             |                    |                |
- |              | [Phase 1: Discover Required Authorization]        |                |
- |              |             |                    |                |
- |  (1) Prompt  |             |                    |                |
- |------------->|             |                    |                |
- |              |             |                    |                |
- |              | (2) Agentic Profile request       |                |
- |              |---------------------------------->|                |
- |              | (3) Agentic Profile + x-authz-mapping             |
- |              |<----------------------------------|                |
- |              |             |                    |                |
- |              | [Phase 2: Compute Authorization Intent]           |                |
- |              |             |                    |                |
- |              | (4) Compute authorization_details (agent_intent)  |
- |              |             |                    |                |
- |              | [Phase 3: Review and Approve]     |                |
- |              |             |                    |                |
- |              | (5) Auth Req + authorization_details     |                |
- |              |------------>|                    |                |
- |              |             |                    |                |
- |  (6) Present intent for approval (via ANA)      |                |
- |<-------------|             |                    |                |
- |              |             |                    |                |
- |  (7) Approve (passkey / strong authn)           |                |
- |------------->|             |                    |                |
- |              | (8) Complete challenge            |                |
- |              |------------>|                    |                |
- |              | (9) RAR token (authorization_details: agent_intent)|
- |              |<------------|                    |                |
- |              |             |                    |                |
- |              | [Phase 4: Runtime Enforcement]     |                |
- |              |             |                    |                |
- |              | (10) Tool call + Bearer RAR token|                |
- |              |---------------------------------->|                |
- |              |             |                    | (11) PDP       |
- |              |             |                    |  Request       |
- |              |             |                    |--------------->|
- |              |             |                    | (12) Decision  |
- |              |             |                    |<---------------|
- |              |             |                    |                |
- |              | (13) Tool result                 |                |
- |              |<----------------------------------|                |
+User           Agent         AS           Profile/PEP        PDP
+  |              |            |                |              |
+  |   [Phase 1: Discover Required Authorization]              |
+  |              |            |                |              |
+  | (1) Prompt   |            |                |              |
+  |------------->|            |                |              |
+  |              | (2) Fetch Agentic Profile   |              |
+  |              |---------------------------->|              |
+  |              | (3) Tool definitions + x-authz-mapping     |
+  |              |<----------------------------|              |
+  |              |            |                |              |
+  |   [Phase 2: Compute Authorization Intent]  |              |
+  |              |            |                |              |
+  |              | (4) Compute agent_intent entries           |
+  |              |     from the user's prompt  |              |
+  |              |            |                |              |
+  |   [Phase 3: Review and Approve]            |              |
+  |              |            |                |              |
+  |              | (5) Auth request + authorization_details   |
+  |              |----------->|                |              |
+  | (6) Present planned actions (via ANA)      |              |
+  |<-------------|            |                |              |
+  | (7) Approve with passkey  |                |              |
+  |------------->|            |                |              |
+  |              | (8) Complete challenge      |              |
+  |              |----------->|                |              |
+  |              | (9) RAR token with approved agent_intent   |
+  |              |<-----------|                |              |
+  |              |            |                |              |
+  |   [Phase 4: Runtime Enforcement]           |              |
+  |              |            |                |              |
+  |              | (10) Tool call + Bearer RAR token          |
+  |              |---------------------------->|              |
+  |              |            |                | (11) PDP req |
+  |              |            |                |------------->|
+  |              |            |                | (12) decision|
+  |              |            |                |<-------------|
+  |              | (13) Tool result            |              |
+  |              |<----------------------------|              |
+  |              |            |                |              |
 ~~~
 
 Steps:
@@ -807,39 +804,62 @@ The agent calls each tool in sequence. The PEP matches each invocation against t
 ### Flow Diagram
 
 ~~~
-User      Intent Agent      Agent           AS       Identity / PEP    PDP
- |              |              |              |               |           |
- | Prompt: "disable alice, delete, list disabled users"      |           |
- |---------------------------->|              |               |           |
- |              |              |              |               |           |
- |              | [Phase 1: Discover Required Authorization]  |           |
- |              |<-delegate discovery-|        |               |           |
- |              |--Agentic Profile req------------------------>|           |
- |              |<-Agentic Profile + x-authz-mapping-----------|           |
- |              |              |              |               |           |
- |              | [Phase 2: Compute Authorization Intent]     |           |
- |              |<-prompt------|              |               |           |
- |              |--3 agent_intent entries---->|               |           |
- |              |              |              |               |           |
- |              | [Phase 3: Review and Approve]               |           |
- |              |              |-Auth Req + 3 intents-------->|           |
- |              |              |<-elicitations challenge------|           |
- |<-present 3 intents----------|              |               |           |
- |--approve (passkey)---------->              |               |           |
- |              |              |-complete challenge---------->|           |
- |              |              |<-RAR token (3 agent_intent entries)------|
- |              |              |              |               |           |
- |              | [Phase 4: Runtime Enforcement]|             |           |
- |              |              |-disable_user + token-------->|           |
- |              |              |              |               |--PDP req->|
- |              |              |              |               |<--allow---|
- |              |              |-delete_user + token--------->|           |
- |              |              |              |               |--PDP req->|
- |              |              |              |               |<--allow---|
- |              |              |-list_users + token---------->|           |
- |              |              |              |               |--PDP req->|
- |              |              |              |               |<--allow---|
- |              |              |<-results-----|               |           |
+User    Intent Agent     Agent       AS          PEP          PDP
+  |           |            |          |           |            |
+  | Prompt: "disable alice, delete her data,      |            |
+  |          list disabled users"     |           |            |
+  |----------------------->|          |           |            |
+  |           |            |          |           |            |
+  |   [Phase 1: Discover Required Authorization]  |            |
+  |           | (delegate discovery)  |           |            |
+  |           |<-----------|          |           |            |
+  |           | Fetch Agentic Profile |           |            |
+  |           |---------------------------------->|            |
+  |           | 3 tools + x-authz-mapping         |            |
+  |           |<----------------------------------|            |
+  |           |            |          |           |            |
+  |   [Phase 2: Compute Authorization Intent]     |            |
+  |           | user prompt|          |           |            |
+  |           |<-----------|          |           |            |
+  |           | 3 agent_intent entries|           |            |
+  |           |----------->|          |           |            |
+  |           |            |          |           |            |
+  |   [Phase 3: Review and Approve]   |           |            |
+  |           |            | Auth request + 3 intents          |
+  |           |            |--------->|           |            |
+  |           |            | elicitation challenge (ANA)       |
+  |           |            |<---------|           |            |
+  | present 3 planned actions         |           |            |
+  |<-----------------------|          |           |            |
+  | approve with passkey   |          |           |            |
+  |----------------------->|          |           |            |
+  |           |            | complete challenge   |            |
+  |           |            |--------->|           |            |
+  |           |            | RAR token (3 approved entries)    |
+  |           |            |<---------|           |            |
+  |           |            |          |           |            |
+  |   [Phase 4: Runtime Enforcement]  |           |            |
+  |           |            | disable_user + token |            |
+  |           |            |--------------------->|            |
+  |           |            |          |           | AuthZEN req|
+  |           |            |          |           |----------->|
+  |           |            |          |           | allow      |
+  |           |            |          |           |<-----------|
+  |           |            | delete_user + token  |            |
+  |           |            |--------------------->|            |
+  |           |            |          |           | AuthZEN req|
+  |           |            |          |           |----------->|
+  |           |            |          |           | allow      |
+  |           |            |          |           |<-----------|
+  |           |            | list_users + token   |            |
+  |           |            |--------------------->|            |
+  |           |            |          |           | AuthZEN req|
+  |           |            |          |           |----------->|
+  |           |            |          |           | allow      |
+  |           |            |          |           |<-----------|
+  |           |            | results  |           |            |
+  |           |            |<---------------------|            |
+  |           |            |          |           |            |
 ~~~
 
 The Intent Agent operates during Phases 1 and 2: it performs discovery on the agent's behalf, computes the three `agent_intent` entries, and plays no further role from Phase 3 onward. The RAR token is presented to the single PEP for each tool call; the PEP evaluates each invocation independently against the token's `authorization_details`.

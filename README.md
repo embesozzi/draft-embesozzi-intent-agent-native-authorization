@@ -9,8 +9,6 @@
 
 This specification defines a framework that enables a first-party AI agent to obtain explicit user approval for the specific operations it plans to execute, and enables enforcement points to verify at runtime that every invocation remains within that approval. The agent discovers the authorization requirements that services publish in their agentic profiles, computes from the user's prompt a structured authorization intent expressed as Rich Authorization Request entries (RFC 9396), and obtains user approval through the native, browser-less challenge flow defined by OAuth 2.0 for First-Party Applications and OAuth 2.0 Agent Native Authorization. The resulting access token carries the approved intent; enforcement points verify each tool invocation against it using a Policy Decision Point, such as the OpenID AuthZEN Authorization API or a local policy engine. This framework is referred to as Intent Agent Native Authorization for Agentic Profiles (IANA-AP).
 
-This version defines the framework for the Model Context Protocol (MCP). Extension to Agent2Agent (A2A) and OpenAPI-described REST APIs is noted as future work.
-
 ## Design Intent
 
 This document presents a unified view of the Intent Agent Native Authorization framework. It is intended as a reference integration point that shows how discovery, intent computation, user authorization, and enforcement compose into a coherent whole. Based on community feedback, individual components (e.g., the `x-authz-mapping` discovery mechanism, the `agent_intent` RAR type, the enforcement profile) may be specified in separate IETF documents. Readers should engage with this draft as a framework specification, not necessarily the final form of each component. The known open points and candidate future specifications are enumerated in the draft's "Open Items and Future Specifications" appendix.
@@ -80,6 +78,7 @@ Feedback on these items is especially welcome — see [Contributing](#contributi
 
 | Document | Link |
 |----------|------|
+| **Editor's Copy ** | [draft-embesozzi-intent-agent-native-authorization](https://embesozzi.github.io/draft-embesozzi-intent-agent-native-authorization/) |
 | **Draft (Markdown)** | [draft-embesozzi-intent-agent-native-authorization.md](./draft-embesozzi-intent-agent-native-authorization.md) |
 | **Introductory article** | [Applying Zero Trust to AI Agents with Intent Agent Native Authorization](https://embesozzi.github.io/posts/martin-besozzi/intent-agent-native-authorization-agentic-profiles/) |
 
