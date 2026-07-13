@@ -3,7 +3,7 @@ title: "Intent Agent Native Authorization for Agentic Profiles"
 abbrev: "IANA-AP"
 category: info
 
-docname: draft-embesozzi-intent-agent-native-authorization-00
+docname: draft-embesozzi-intent-agent-native-authorization-latest
 submissiontype: independent
 number:
 date: 2026-07-10

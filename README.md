@@ -64,7 +64,7 @@ IANA-AP does not replace existing standards. It composes them.
 
 | Document | Link |
 |----------|------|
-| **Draft (Markdown)** | [draft-embesozzi-intent-agent-native-authorization-00.md](./draft-embesozzi-intent-agent-native-authorization-00.md) |
+| **Draft (Markdown)** | [draft-embesozzi-intent-agent-native-authorization.md](./draft-embesozzi-intent-agent-native-authorization.md) |
 | **Introductory article** | [Applying Zero Trust to AI Agents with Intent Agent Native Authorization](https://embesozzi.github.io/posts/martin-besozzi/intent-agent-native-authorization-agentic-profiles/) |
 
 ### Intent Agent Native Authorization — In Action
