@@ -60,6 +60,22 @@ Each layer builds on existing, independently governed specifications:
 
 IANA-AP does not replace existing standards. It composes them.
 
+## Open Items
+
+This draft is a framework under active development. The known open points — each a
+candidate for a future companion specification — are detailed in the draft's
+"Open Items and Future Specifications" appendix:
+
+| Open item | Question |
+|---|---|
+| A2A / OpenAPI profile bindings | `x-authz-mapping` bindings for A2A Agent Cards and OpenAPI operations |
+| `agent_intent` type registration | Final RAR type name and a formal JSON schema |
+| Local PDP mappings | Normative Cedar/OPA bindings (AuthZEN is the normative interface today) |
+| Intent-aware policy evaluation | How the approved intent is conveyed to the PDP |
+| Token attenuation and downscoping | Narrowing the token per server (Token Exchange / Transaction Tokens) and delegation across agent chains |
+
+Feedback on these items is especially welcome — see [Contributing](#contributing).
+
 ## Documents
 
 | Document | Link |
