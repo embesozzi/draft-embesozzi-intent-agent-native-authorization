@@ -55,7 +55,7 @@ informative:
   RFC8707:
   COAZ:
     title: "AuthZEN Profile for Model Context Protocol Tool Authorization"
-    target: https://github.com/openid/authzen/blob/main/profiles/authzen-mcp-profile-1_0.md
+    target: https://openid.github.io/authzen/authzen-mcp-profile-1_0.html
     author:
       org: OpenID AuthZEN Working Group
     date: 2026
@@ -114,8 +114,6 @@ informative:
 
 This specification defines a framework that enables a first-party AI agent to obtain explicit user approval for the specific operations it plans to execute, and enables enforcement points to verify at runtime that every invocation remains within that approval. The agent discovers the authorization requirements that services publish in their agentic profiles, computes from the user's prompt a structured authorization intent expressed as Rich Authorization Request entries (RFC 9396), and obtains user approval through the native, browser-less challenge flow defined by OAuth 2.0 for First-Party Applications and OAuth 2.0 Agent Native Authorization. The resulting access token carries the approved intent; enforcement points verify each tool invocation against it using a Policy Decision Point, such as the OpenID AuthZEN Authorization API or a local policy engine. This framework is referred to as Intent Agent Native Authorization for Agentic Profiles (IANA-AP).
 
-This version defines the framework for the Model Context Protocol (MCP). Extension to Agent2Agent (A2A) and OpenAPI-described REST APIs is noted as future work.
-
 --- middle
 
 # Introduction
@@ -126,7 +124,7 @@ This gap is acute in first-party agentic deployments. A user instructs an agent 
 
 Traditional OAuth deployments grant permissions at login time: the user approves a set of scopes once, and every subsequent action is authorized implicitly under those scopes. This model is unsuitable for agentic deployments, where the specific actions and resources involved are not known until the user issues a prompt. It also answers only a single question — is this request allowed? — while agentic systems require an additional runtime guarantee: does this request belong to the execution plan the user explicitly approved?
 
-This specification provides that guarantee through a plan-before-execute model that shifts authorization from login time to runtime. The agent computes the exact intent from the user's prompt; the user approves it at the moment of action with a cryptographic gesture via {{ANA}}, natively within the agent's UX — no browser redirect — through a structured machine-readable challenge; and the resulting token is not a broad credential but a record of what the user chose to authorize for this specific task. Every subsequent invocation is verified against that approval at runtime.
+This specification provides that guarantee through a plan-before-execute model that shifts authorization from login time to runtime. The agent computes the exact intent from the user's prompt; the user approves it at the moment of action with a cryptographic gesture via the OAuth 2.0 Agent Native Authorization flow (ANA) {{ANA}}, natively within the agent's UX — no browser redirect — through a structured machine-readable challenge; and the resulting token is not a broad credential but a record of what the user chose to authorize for this specific task. Every subsequent invocation is verified against that approval at runtime.
 
 Before an AI agent can execute on behalf of a user, it must answer four questions:
 
@@ -141,7 +139,7 @@ This document defines a framework with four phases, each answering one of these 
 
 2. **Compute Authorization Intent**: The agent maps the user's prompt against the discovered SARC entries to produce a set of `authorization_details` entries ({{RFC9396}}) that represent the precise set of authorized actions the user will be asked to approve.
 
-3. **Review and Approve**: The agent drives an OAuth 2.0 first-party authorization challenge carrying the computed `authorization_details`. The user sees the exact planned tool invocations and approves natively — no browser redirect — via a structured machine-readable challenge ({{ANA}}). This phase follows {{FIPA}} and {{ANA}}.
+3. **Review and Approve**: The agent drives an OAuth 2.0 first-party authorization challenge carrying the computed `authorization_details`. The user sees the exact planned tool invocations and approves natively — no browser redirect — via a structured machine-readable challenge ({{ANA}}). This phase follows OAuth 2.0 for First-Party Applications (FiPA) {{FIPA}} and Agent Native Authorization (ANA) {{ANA}}.
 
 4. **Runtime Enforcement**: The agent presents the resulting token to the Policy Enforcement Point (PEP). The PEP maps each tool invocation to the token's `authorization_details`, extracts the SARC parameters, and calls a Policy Decision Point (PDP) for a fine-grained allow/deny decision. AuthZEN {{AUTHZEN}} is the normative PDP interface; other compatible policy engines MAY be used.
 
@@ -153,7 +151,7 @@ This document presents a unified view of the framework, intended as a reference 
 
 This specification builds on and composes the following:
 
-- **COAZ {{COAZ}}**: Informatively referenced as the origin of the `x-authz-mapping` field concept and SARC-structured tool mapping. IANA-AP defines `x-authz-mapping` independently (Section 4.2) to be PDP-agnostic and AuthZEN-compatible, and intentionally diverges from COAZ's enforcement-time resource construction behavior (Section 8.4). COAZ is cited as background; IANA-AP implementations are not required to conform to it.
+- **COAZ {{COAZ}}**: The AuthZEN Profile for Model Context Protocol Tool Authorization, an OpenID AuthZEN Working Group draft, informatively referenced as the origin of the `x-authz-mapping` field concept and SARC-structured tool mapping. IANA-AP defines `x-authz-mapping` independently (Section 4.2) to be PDP-agnostic and AuthZEN-compatible, and intentionally diverges from COAZ's enforcement-time resource construction behavior (Section 8.4). COAZ is cited as background; IANA-AP implementations are not required to conform to it.
 
 - **RFC 9396 {{RFC9396}}**: The `authorization_details` parameter and RAR token structure are used as-is. This specification defines a new RAR type `agent_intent` to carry SARC-structured intent entries.
 

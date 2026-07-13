@@ -78,7 +78,7 @@ Feedback on these items is especially welcome — see [Contributing](#contributi
 
 | Document | Link |
 |----------|------|
-| **Editor's Copy ** | [draft-embesozzi-intent-agent-native-authorization](https://embesozzi.github.io/draft-embesozzi-intent-agent-native-authorization/) |
+| **Editor's Copy** | [draft-embesozzi-intent-agent-native-authorization](https://embesozzi.github.io/draft-embesozzi-intent-agent-native-authorization/) |
 | **Draft (Markdown)** | [draft-embesozzi-intent-agent-native-authorization.md](./draft-embesozzi-intent-agent-native-authorization.md) |
 | **Introductory article** | [Applying Zero Trust to AI Agents with Intent Agent Native Authorization](https://embesozzi.github.io/posts/martin-besozzi/intent-agent-native-authorization-agentic-profiles/) |
 
