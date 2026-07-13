@@ -663,7 +663,7 @@ The agent has access to one MCP server:
 
 ### Phase 1: Discover Required Authorization
 
-The agent reads the Agentic MCP Profile from the identity server and collects tools with `x-authz-mapping` in their `_meta`. The discovery corpus contains:
+The agent delegates discovery to the Intent Agent, which reads the Agentic MCP Profile from the identity server and collects tools with `x-authz-mapping` in their `_meta`. The discovery corpus contains:
 
 | Tool | `action.name` | `resource.type` | `resource.id` | `arguments` |
 |---|---|---|---|---|
@@ -675,7 +675,7 @@ The agent reads the Agentic MCP Profile from the identity server and collects to
 
 ### Phase 2: Compute Authorization Intent (Intent Agent)
 
-The Intent Agent receives the user's prompt and the discovery corpus. It plans the tool calls from the prompt, resolves the CEL expressions against each planned call, and produces three `agent_intent` entries:
+The Intent Agent, holding the discovery corpus from Phase 1, receives the user's prompt. It plans the tool calls from the prompt, resolves the CEL expressions against each planned call, and produces three `agent_intent` entries:
 
 ~~~json
 [
@@ -813,12 +813,13 @@ User      Intent Agent      Agent           AS       Identity / PEP    PDP
  |---------------------------->|              |               |           |
  |              |              |              |               |           |
  |              | [Phase 1: Discover Required Authorization]  |           |
- |              |              |-Agentic Profile req--------->|           |
- |              |              |<-Agentic Profile + x-authz-mapping------|
+ |              |<-delegate discovery-|        |               |           |
+ |              |--Agentic Profile req------------------------>|           |
+ |              |<-Agentic Profile + x-authz-mapping-----------|           |
  |              |              |              |               |           |
  |              | [Phase 2: Compute Authorization Intent]     |           |
- |              |<-prompt + corpus-|           |               |           |
- |              |--3 agent_intent->|           |               |           |
+ |              |<-prompt------|              |               |           |
+ |              |--3 agent_intent entries---->|               |           |
  |              |              |              |               |           |
  |              | [Phase 3: Review and Approve]               |           |
  |              |              |-Auth Req + 3 intents-------->|           |
@@ -841,7 +842,7 @@ User      Intent Agent      Agent           AS       Identity / PEP    PDP
  |              |              |<-results-----|               |           |
 ~~~
 
-The Intent Agent appears only during Phase 2: it receives the prompt and the discovery corpus, produces the three `agent_intent` entries, and plays no further role. The RAR token is presented to the single PEP for each tool call; the PEP evaluates each invocation independently against the token's `authorization_details`.
+The Intent Agent operates during Phases 1 and 2: it performs discovery on the agent's behalf, computes the three `agent_intent` entries, and plays no further role from Phase 3 onward. The RAR token is presented to the single PEP for each tool call; the PEP evaluates each invocation independently against the token's `authorization_details`.
 
 # Open Items and Future Specifications
 
