@@ -29,10 +29,6 @@ Abstract
    framework is referred to as Intent Agent Native Authorization for
    Agentic Profiles (IANA-AP).
 
-   This version defines the framework for the Model Context Protocol
-   (MCP).  Extension to Agent2Agent (A2A) and OpenAPI-described REST
-   APIs is noted as future work.
-
 Status of This Memo
 
    This Internet-Draft is submitted in full conformance with the
@@ -154,11 +150,12 @@ Table of Contents
    execute model that shifts authorization from login time to runtime.
    The agent computes the exact intent from the user's prompt; the user
    approves it at the moment of action with a cryptographic gesture via
-   [ANA], natively within the agent's UX — no browser redirect — through
-   a structured machine-readable challenge; and the resulting token is
-   not a broad credential but a record of what the user chose to
-   authorize for this specific task.  Every subsequent invocation is
-   verified against that approval at runtime.
+   the OAuth 2.0 Agent Native Authorization flow (ANA) [ANA], natively
+   within the agent's UX — no browser redirect — through a structured
+   machine-readable challenge; and the resulting token is not a broad
+   credential but a record of what the user chose to authorize for this
+   specific task.  Every subsequent invocation is verified against that
+   approval at runtime.
 
    Before an AI agent can execute on behalf of a user, it must answer
    four questions:
@@ -190,7 +187,8 @@ Table of Contents
        authorization_details.  The user sees the exact planned tool
        invocations and approves natively — no browser redirect — via a
        structured machine-readable challenge ([ANA]).  This phase
-       follows [FIPA] and [ANA].
+       follows OAuth 2.0 for First-Party Applications (FiPA) [FIPA] and
+       Agent Native Authorization (ANA) [ANA].
 
    4.  *Runtime Enforcement*: The agent presents the resulting token to
        the Policy Enforcement Point (PEP).  The PEP maps each tool
@@ -224,13 +222,15 @@ Table of Contents
 
    This specification builds on and composes the following:
 
-   *  *COAZ [COAZ]*: Informatively referenced as the origin of the x-
-      authz-mapping field concept and SARC-structured tool mapping.
-      IANA-AP defines x-authz-mapping independently (Section 4.2) to be
-      PDP-agnostic and AuthZEN-compatible, and intentionally diverges
-      from COAZ's enforcement-time resource construction behavior
-      (Section 8.4).  COAZ is cited as background; IANA-AP
-      implementations are not required to conform to it.
+   *  *COAZ [COAZ]*: The AuthZEN Profile for Model Context Protocol Tool
+      Authorization, an OpenID AuthZEN Working Group draft,
+      informatively referenced as the origin of the x-authz-mapping
+      field concept and SARC-structured tool mapping.  IANA-AP defines
+      x-authz-mapping independently (Section 4.2) to be PDP-agnostic and
+      AuthZEN-compatible, and intentionally diverges from COAZ's
+      enforcement-time resource construction behavior (Section 8.4).
+      COAZ is cited as background; IANA-AP implementations are not
+      required to conform to it.
 
    *  *RFC 9396 [RFC9396]*: The authorization_details parameter and RAR
       token structure are used as-is.  This specification defines a new
@@ -1179,8 +1179,8 @@ Table of Contents
 
    [COAZ]     OpenID AuthZEN Working Group, "AuthZEN Profile for Model
               Context Protocol Tool Authorization", 2026,
-              <https://github.com/openid/authzen/blob/main/profiles/
-              authzen-mcp-profile-1_0.md>.
+              <https://openid.github.io/authzen/authzen-mcp-profile-
+              1_0.html>.
 
    [MCP]      Anthropic, "Model Context Protocol Specification", 2025,
               <https://spec.modelcontextprotocol.io/>.
